@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iPhone 15 Dimensions Device Preview (393 x 852)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #1e1e24;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 20px;
+    }
+    .device-title {
+      color: #F5ECCE;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .device-badge {
+      background: #B88E28;
+      color: #FFFFFF;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    /* iPhone 15 Mock Frame */
+    .iphone-frame {
+      width: 393px;
+      height: 852px;
+      background: #000;
+      border-radius: 54px;
+      padding: 12px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 0 4px #2b2b36, 0 0 0 6px #121217;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Dynamic Island pill */
+    .dynamic-island {
+      position: absolute;
+      top: 19px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 124px;
+      height: 35px;
+      background: #000000;
+      border-radius: 20px;
+      z-index: 9999;
+      pointer-events: none;
+    }
+    /* Screen iframe */
+    .iphone-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 44px;
+      overflow: hidden;
+      background: #F7F5EF;
+      position: relative;
+    }
+    iframe {
+      width: 393px;
+      height: 852px;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="device-title">
+    <span>Apple iPhone 15 Viewport Preview</span>
+    <span class="device-badge">393 × 852 px</span>
+  </div>
+  <div class="iphone-frame">
+    <div class="dynamic-island"></div>
+    <div class="iphone-screen">
+      <iframe src="http://localhost:5173/" id="iphone-preview-frame"></iframe>
+    </div>
+  </div>
+</body>
+</html>
