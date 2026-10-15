@@ -8,6 +8,17 @@ const connectDB = async()=>{
         mongoose.connection.on('error', (err) => console.error(`MongoDB error: ${err.message}`));
         mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected'));
 
+        // Ensure default admin user exists
+        const User = require('../models/User');
+        const existingAdmin = await User.findOne({ email: 'admin@gmail.com' });
+        if (!existingAdmin) {
+            await User.create({
+                email: 'admin@gmail.com',
+                password: 'hossain jewellers',
+                name: 'Hossain Jewellers Admin',
+            });
+            console.log('Default admin created: admin@gmail.com');
+        }
     }catch(error){
         console.log("mongodb is not connecting", error)
         process.exit(1);

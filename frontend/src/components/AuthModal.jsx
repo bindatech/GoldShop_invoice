@@ -4,8 +4,8 @@ import { Lock, Mail, User, Sparkles, AlertCircle, ArrowRight, CheckCircle2, Eye,
 
 export default function AuthModal({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@gmail.com');
+  const [password, setPassword] = useState('hossain jewellers');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,8 +42,8 @@ export default function AuthModal({ onLoginSuccess }) {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('shopkeeper@hossainjewellers.com');
-    setPassword('password123');
+    setEmail('admin@gmail.com');
+    setPassword('hossain jewellers');
     setError('');
   };
 
@@ -181,6 +181,53 @@ export default function AuthModal({ onLoginSuccess }) {
           </div>
         )}
 
+        {/* Default credentials banner */}
+        {!isRegister && (
+          <div style={{
+            background: 'linear-gradient(135deg, #FFFDF7 0%, #FAF5E8 100%)',
+            border: '1px solid rgba(212, 175, 55, 0.45)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.65rem 0.85rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            boxShadow: '0 1px 3px rgba(184, 142, 40, 0.08)',
+          }}>
+            <div>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#966F17', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Default Login Credentials
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#1E293B', marginTop: '2px' }}>
+                <span>Email: <strong>admin@gmail.com</strong></span>
+                <span style={{ margin: '0 6px', color: '#CBD5E1' }}>|</span>
+                <span>Pass: <strong>hossain jewellers</strong></span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fillDemoCredentials}
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid rgba(212, 175, 55, 0.6)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.35rem 0.65rem',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: '#966F17',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#966F17'; e.currentTarget.style.color = '#FFFFFF'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.color = '#966F17'; }}
+            >
+              Auto-fill
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           {isRegister && (
             <div style={{ marginBottom: '1.2rem' }}>
@@ -314,7 +361,7 @@ export default function AuthModal({ onLoginSuccess }) {
             }}
           >
             <CheckCircle2 size={14} />
-            Auto-fill demo credentials
+            Auto-fill default credentials (admin@gmail.com)
           </button>
         </div>
       </div>
