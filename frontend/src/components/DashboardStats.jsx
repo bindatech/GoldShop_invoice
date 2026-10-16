@@ -1,20 +1,34 @@
 import React from 'react';
-import { FileText, Coins, Weight, Users } from 'lucide-react';
+import { FileText, Coins, Weight, Scale, Users } from 'lucide-react';
+import { isGoldItem, isSilverItem } from '../utils/metalUtils';
 
 export default function DashboardStats({ invoices = [] }) {
   const totalInvoices = invoices.length;
 
   const totalAmount = invoices.reduce((acc, inv) => acc + (Number(inv.totalAmount) || 0), 0);
 
-  const totalGrams = invoices.reduce((acc, inv) => {
-    const itemGrams = (inv.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-    return acc + itemGrams;
+  // Strictly separate Gold weight from Silver weight
+  const totalGoldGrams = invoices.reduce((acc, inv) => {
+    const goldGrams = (inv.items || []).reduce((sum, item) => {
+      return isGoldItem(item) ? sum + (Number(item.quantity) || 0) : sum;
+    }, 0);
+    return acc + goldGrams;
   }, 0);
 
-  const uniqueCustomers = new Set(invoices.map((inv) => (inv.buyer?.name || '').trim().toLowerCase())).size;
+  const totalSilverGrams = invoices.reduce((acc, inv) => {
+    const silverGrams = (inv.items || []).reduce((sum, item) => {
+      return isSilverItem(item) ? sum + (Number(item.quantity) || 0) : sum;
+    }, 0);
+    return acc + silverGrams;
+  }, 0);
+
+  const uniqueCustomers = new Set(
+    invoices.map((inv) => (inv.buyer?.name || '').trim().toLowerCase()).filter(Boolean)
+  ).size;
 
   const stats = [
     {
+      id: 'stat-total-invoices',
       label: 'Total Invoices',
       value: totalInvoices,
       icon: FileText,
@@ -23,6 +37,7 @@ export default function DashboardStats({ invoices = [] }) {
       desc: 'All-time created invoices',
     },
     {
+      id: 'stat-total-billing',
       label: 'Total Billing Value',
       value: `₹${totalAmount.toLocaleString('en-IN')}`,
       icon: Coins,
@@ -31,14 +46,25 @@ export default function DashboardStats({ invoices = [] }) {
       desc: 'Cumulative invoiced turnover',
     },
     {
+      id: 'stat-gold-quantity',
       label: 'Gold Quantity Billed',
-      value: `${totalGrams.toFixed(3)} gms`,
+      value: `${totalGoldGrams.toFixed(3)} gms`,
       icon: Weight,
       color: '#047857',
       bg: 'rgba(4, 120, 87, 0.08)',
-      desc: 'Total weight recorded',
+      desc: 'Total gold weight recorded',
     },
     {
+      id: 'stat-silver-quantity',
+      label: 'Silver Quantity Billed',
+      value: `${totalSilverGrams.toFixed(3)} gms`,
+      icon: Scale,
+      color: '#475569',
+      bg: 'rgba(71, 85, 105, 0.1)',
+      desc: 'Total silver weight recorded',
+    },
+    {
+      id: 'stat-customer-base',
       label: 'Customer Base',
       value: uniqueCustomers,
       icon: Users,
@@ -54,63 +80,27 @@ export default function DashboardStats({ invoices = [] }) {
         const Icon = stat.icon;
         return (
           <div
-            key={idx}
-            style={{
-              background: '#FFFFFF',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 'clamp(0.85rem, 1.8vw, 1.25rem)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'clamp(0.75rem, 1.5vw, 1.25rem)',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: 'var(--shadow-sm)',
-            }}
+            key={stat.id || idx}
+            id={stat.id}
+            className="dashboard-stat-card"
           >
-            <div style={{
-              width: 'clamp(38px, 4vw, 46px)',
-              height: 'clamp(38px, 4vw, 46px)',
-              borderRadius: '12px',
-              background: stat.bg,
-              color: stat.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
+            <div
+              className="dashboard-stat-icon-wrapper"
+              style={{
+                background: stat.bg,
+                color: stat.color,
+              }}
+            >
               <Icon size={20} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{
-                fontSize: 'var(--text-xs)',
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                fontWeight: 600,
-                fontFamily: 'var(--font-heading)',
-              }}>
+              <div className="dashboard-stat-label">
                 {stat.label}
               </div>
-              <div style={{
-                fontSize: 'clamp(1.15rem, 2.6vw, 1.5rem)',
-                fontWeight: 750,
-                color: 'var(--text-main)',
-                marginTop: '0.15rem',
-                letterSpacing: '-0.02em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
+              <div className="dashboard-stat-value">
                 {stat.value}
               </div>
-              <div style={{
-                fontSize: 'clamp(0.68rem, 1.5vw, 0.72rem)',
-                color: 'var(--text-dim)',
-                marginTop: '0.1rem',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
+              <div className="dashboard-stat-desc">
                 {stat.desc}
               </div>
             </div>

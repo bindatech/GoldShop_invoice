@@ -12,10 +12,12 @@ const generateNextInvoiceNumber = async (userId) => {
 
 // Helper to calculate totals
 const calculateInvoiceTotals = (
-  items,
+  items = [],
   customCgstRate = 1.5,
   customSgstRate = 1.5,
-  customMakingCharges = 0
+  customMakingCharges = 0,
+  otherProducts = [],
+  customHallmarkAmount = 0
 ) => {
   let itemsTotal = 0;
 
@@ -25,9 +27,26 @@ const calculateInvoiceTotals = (
     const itemAmount = Math.round(qty * rate * 100) / 100;
     itemsTotal += itemAmount;
 
+    let metal = item.metal;
+    const desc = (item.description || '').toLowerCase();
+    if (
+      desc.includes('silver') ||
+      desc.includes('chandi') ||
+      desc.includes('925') ||
+      desc.includes('92.5') ||
+      desc.includes('rupal')
+    ) {
+      metal = 'silver';
+    } else if (desc.includes('other product') || desc.includes('other goods')) {
+      metal = 'other';
+    } else if (!metal) {
+      metal = 'gold';
+    }
+
     return {
       slNo: item.slNo || index + 1,
-      description: item.description || 'GOLD ORNAMENTS (916%)',
+      description: item.description || (metal === 'silver' ? 'SILVER ORNAMENTS (92.5%)' : 'GOLD ORNAMENTS (916%)'),
+      metal,
       hsnSac: item.hsnSac || '7113',
       quantity: qty,
       rate: rate,
@@ -38,7 +57,8 @@ const calculateInvoiceTotals = (
 
   itemsTotal = Math.round(itemsTotal * 100) / 100;
   const makingCharges = Math.max(0, Math.round((Number(customMakingCharges) || 0) * 100) / 100);
-  // Tax is not calculated on making charges; taxable amount is itemsTotal
+  const hallmarkAmount = Math.max(0, Math.round((Number(customHallmarkAmount) || 0) * 100) / 100);
+  // Tax is not calculated on making charges, hallmark amount, or other products; taxable amount is itemsTotal
   const taxableAmount = itemsTotal;
 
   const cgstRate = Number(customCgstRate) >= 0 ? Number(customCgstRate) : 1.5;
@@ -48,8 +68,31 @@ const calculateInvoiceTotals = (
   const sgstAmount = Math.round(taxableAmount * (sgstRate / 100) * 100) / 100;
 
   const totalTaxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
-  // Total amount includes taxable items + total taxes + making charges
-  const rawTotal = taxableAmount + totalTaxAmount + makingCharges;
+
+  // Process Other Products: no tax is applied, amount is directly added to total amount
+  let otherProductsTotal = 0;
+  const processedOtherProducts = (otherProducts || [])
+    .map((op, idx) => {
+      const name = (op.name || op.description || '').trim();
+      const qty = Number(op.quantity) || 1;
+      const amt = Math.max(0, Math.round((Number(op.amount) || 0) * 100) / 100);
+      if (name || amt > 0) {
+        otherProductsTotal += amt;
+        return {
+          slNo: op.slNo || idx + 1,
+          name: name || 'Other Product',
+          quantity: qty,
+          amount: amt,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  otherProductsTotal = Math.round(otherProductsTotal * 100) / 100;
+
+  // Total amount includes taxable items + total taxes + making charges + other products + hallmark amount
+  const rawTotal = taxableAmount + totalTaxAmount + makingCharges + otherProductsTotal + hallmarkAmount;
   const totalAmount = Math.round(rawTotal);
   const roundOff = Math.round((totalAmount - rawTotal) * 100) / 100;
 
@@ -59,6 +102,9 @@ const calculateInvoiceTotals = (
   return {
     items: processedItems,
     makingCharges,
+    hallmarkAmount,
+    otherProducts: processedOtherProducts,
+    otherProductsTotal,
     itemsTotal,
     taxableAmount,
     cgstRate,
@@ -95,6 +141,8 @@ exports.createInvoice = async (req, res) => {
       buyer,
       items,
       makingCharges,
+      hallmarkAmount,
+      otherProducts,
       cgstRate,
       sgstRate,
       seller,
@@ -114,7 +162,7 @@ exports.createInvoice = async (req, res) => {
       });
     }
 
-    const calculated = calculateInvoiceTotals(items, cgstRate, sgstRate, makingCharges);
+    const calculated = calculateInvoiceTotals(items, cgstRate, sgstRate, makingCharges, otherProducts, hallmarkAmount);
 
     const invNum =
       invoiceNumber && invoiceNumber.trim()
@@ -161,6 +209,9 @@ exports.createInvoice = async (req, res) => {
       },
       items: calculated.items,
       makingCharges: calculated.makingCharges,
+      hallmarkAmount: calculated.hallmarkAmount,
+      otherProducts: calculated.otherProducts,
+      otherProductsTotal: calculated.otherProductsTotal,
       taxableAmount: calculated.taxableAmount,
       cgstRate: calculated.cgstRate,
       cgstAmount: calculated.cgstAmount,
@@ -326,6 +377,8 @@ exports.updateInvoice = async (req, res) => {
       buyer,
       items,
       makingCharges,
+      hallmarkAmount,
+      otherProducts,
       cgstRate,
       sgstRate,
       seller,
@@ -366,18 +419,26 @@ exports.updateInvoice = async (req, res) => {
 
     if (
       (items && Array.isArray(items) && items.length > 0) ||
-      makingCharges !== undefined
+      makingCharges !== undefined ||
+      hallmarkAmount !== undefined ||
+      otherProducts !== undefined
     ) {
       const itemsToCalculate = items && Array.isArray(items) && items.length > 0 ? items : invoice.items;
+      const otherProductsToCalculate = otherProducts !== undefined ? otherProducts : (invoice.otherProducts || []);
       const calculated = calculateInvoiceTotals(
         itemsToCalculate,
         cgstRate !== undefined ? cgstRate : invoice.cgstRate,
         sgstRate !== undefined ? sgstRate : invoice.sgstRate,
-        makingCharges !== undefined ? makingCharges : invoice.makingCharges
+        makingCharges !== undefined ? makingCharges : invoice.makingCharges,
+        otherProductsToCalculate,
+        hallmarkAmount !== undefined ? hallmarkAmount : (invoice.hallmarkAmount || 0)
       );
 
       invoice.items = calculated.items;
       invoice.makingCharges = calculated.makingCharges;
+      invoice.hallmarkAmount = calculated.hallmarkAmount;
+      invoice.otherProducts = calculated.otherProducts;
+      invoice.otherProductsTotal = calculated.otherProductsTotal;
       invoice.taxableAmount = calculated.taxableAmount;
       invoice.cgstRate = calculated.cgstRate;
       invoice.cgstAmount = calculated.cgstAmount;
@@ -504,18 +565,23 @@ exports.downloadInvoicePdf = async (req, res) => {
     const safeNumber = (invoice.invoiceNumber || 'TAX').replace(/[/\\?%*:|"<>]/g, '_');
     const filename = `Invoice_${safeNumber}.pdf`;
 
-    // Ensure calculation is strictly without tax on making charges
+    // Ensure calculation is strictly without tax on making charges, hallmark, and other products
     const calculated = calculateInvoiceTotals(
       invoice.items,
       invoice.cgstRate,
       invoice.sgstRate,
-      invoice.makingCharges
+      invoice.makingCharges,
+      invoice.otherProducts,
+      invoice.hallmarkAmount
     );
 
     const normalizedInvoice = {
       ...invoice.toObject(),
       items: calculated.items,
       makingCharges: calculated.makingCharges,
+      hallmarkAmount: calculated.hallmarkAmount,
+      otherProducts: calculated.otherProducts,
+      otherProductsTotal: calculated.otherProductsTotal,
       taxableAmount: calculated.taxableAmount,
       cgstRate: calculated.cgstRate,
       cgstAmount: calculated.cgstAmount,
@@ -530,6 +596,7 @@ exports.downloadInvoicePdf = async (req, res) => {
     // Set Content-Type header to application/pdf
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     // Stream PDF directly to client response
     buildInvoicePDF(normalizedInvoice, res);

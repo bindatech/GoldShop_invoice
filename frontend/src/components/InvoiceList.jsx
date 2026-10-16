@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Eye, Edit3, Trash2, Printer, Plus, AlertCircle, RefreshCw, Download } from 'lucide-react';
 import { api } from '../services/api';
+import { isGoldItem, isSilverItem } from '../utils/metalUtils';
 
 export default function InvoiceList({
   invoices,
@@ -123,7 +124,7 @@ export default function InvoiceList({
               <th>Invoice No.</th>
               <th>Date</th>
               <th>Customer / Buyer</th>
-              <th>Items & Gold Purity</th>
+              <th>Items & Metal Purity</th>
               <th>Weight (Gms)</th>
               <th>Total Amount</th>
               <th>Payment</th>
@@ -175,6 +176,8 @@ export default function InvoiceList({
             ) : (
               invoices.map((inv) => {
                 const totalGrams = (inv.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+                const goldGrams = (inv.items || []).reduce((sum, item) => (isGoldItem(item) ? sum + (Number(item.quantity) || 0) : sum), 0);
+                const silverGrams = (inv.items || []).reduce((sum, item) => (isSilverItem(item) ? sum + (Number(item.quantity) || 0) : sum), 0);
                 const itemsSummary = (inv.items || []).map((i) => i.description).join(', ');
 
                 return (
@@ -212,9 +215,25 @@ export default function InvoiceList({
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, color: 'var(--accent-green)', fontSize: '0.9rem' }}>
-                        {totalGrams.toFixed(3)} gms
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ fontWeight: 650, color: 'var(--text-main)', fontSize: '0.88rem' }}>
+                          {totalGrams.toFixed(3)} gms
+                        </span>
+                        {silverGrams > 0 && goldGrams > 0 ? (
+                          <div style={{ display: 'flex', gap: '0.4rem', fontSize: '0.7rem', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#047857', fontWeight: 600 }}>Gold: {goldGrams.toFixed(3)}g</span>
+                            <span style={{ color: '#475569', fontWeight: 600 }}>Silver: {silverGrams.toFixed(3)}g</span>
+                          </div>
+                        ) : silverGrams > 0 ? (
+                          <span style={{ color: '#475569', fontSize: '0.72rem', fontWeight: 600 }}>
+                            Silver: {silverGrams.toFixed(3)}g
+                          </span>
+                        ) : goldGrams > 0 ? (
+                          <span style={{ color: '#047857', fontSize: '0.72rem', fontWeight: 500 }}>
+                            Gold: {goldGrams.toFixed(3)}g
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>
@@ -246,7 +265,7 @@ export default function InvoiceList({
                           <Eye size={16} />
                         </button>
 
-                        {/* Download PDF via Blob ObjectURL Dynamic Anchor */}
+                        {/* Direct Native PDF Download */}
                         <button
                           onClick={() => handleDownloadPdf(inv)}
                           disabled={downloadingId === inv._id}

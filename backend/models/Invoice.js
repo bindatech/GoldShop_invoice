@@ -11,6 +11,10 @@ const invoiceItemSchema = new mongoose.Schema({
     required: [true, 'Description of goods is required'],
     default: 'GOLD ORNAMENTS (916%)',
   },
+  metal: {
+    type: String,
+    enum: ['gold', 'silver', 'other'],
+  },
   hsnSac: {
     type: String,
     default: '7113',
@@ -29,9 +33,26 @@ const invoiceItemSchema = new mongoose.Schema({
     type: String,
     default: 'gms',
   },
+});
+
+const otherProductSchema = new mongoose.Schema({
+  slNo: {
+    type: Number,
+    default: 1,
+  },
+  name: {
+    type: String,
+    required: [true, 'Other product name is required'],
+    trim: true,
+  },
+  quantity: {
+    type: Number,
+    default: 1,
+  },
   amount: {
     type: Number,
     required: true,
+    default: 0,
   },
 });
 
@@ -106,6 +127,20 @@ const invoiceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, 'Making charges cannot be negative'],
+    },
+
+    // Hallmark Amount / Charges (non-taxable, added directly to total amount)
+    hallmarkAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Hallmark amount cannot be negative'],
+    },
+
+    // Other Products (non-taxable, added directly to total amount)
+    otherProducts: [otherProductSchema],
+    otherProductsTotal: {
+      type: Number,
+      default: 0,
     },
 
     // Tax & Totals

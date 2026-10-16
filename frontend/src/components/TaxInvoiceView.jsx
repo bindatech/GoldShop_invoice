@@ -61,7 +61,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
 
-    // Option 1: First try direct backend PDF stream via Blob & dynamic anchor
+    // Option 1: Direct native server PDF download (no blob format)
     if (invoice?._id) {
       try {
         await api.downloadInvoicePDF(invoice._id, invoice.invoiceNumber);
@@ -515,6 +515,40 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                             {formatCurrency(makingCharges)}
                           </td>
                         </tr>
+
+                        {/* Hallmark Charges Row (Non-Taxable, direct addition) */}
+                        {Number(invoice.hallmarkAmount || 0) > 0 && (
+                          <tr style={{ height: '20px' }}>
+                            <td></td>
+                            <td style={{ textAlign: 'left', padding: '2px 5px', fontWeight: 'bold', fontSize: '9pt', color: '#111827' }}>
+                              HALLMARK CHARGES
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '9pt' }}>
+                              {formatCurrency(invoice.hallmarkAmount)}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Other Products Rows (Non-Taxable, direct addition) */}
+                        {(invoice.otherProducts || []).map((op, idx) => (
+                          <tr key={`other-prod-${idx}`} style={{ height: '20px' }}>
+                            <td></td>
+                            <td style={{ textAlign: 'left', padding: '2px 5px', fontWeight: 'bold', fontSize: '9pt', color: '#111827' }}>
+                              {(op.name || 'OTHER PRODUCT').toUpperCase()}
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '9pt' }}>
+                              {formatCurrency(op.amount)}
+                            </td>
+                          </tr>
+                        ))}
 
                         {/* ROUND OFF Line Row */}
                         <tr style={{ height: '20px' }}>

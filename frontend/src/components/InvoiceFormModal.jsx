@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useDebounce } from '../hooks/useDebounce';
 import { convertNumberToWords } from '../utils/numberToWords';
+import { isGoldItem, isSilverItem } from '../utils/metalUtils';
 import { X, Plus, Trash2, Calculator, UserCheck, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoice, user }) {
@@ -56,6 +57,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
     {
       slNo: 1,
       description: 'GOLD ORNAMENTS (916%)',
+      metal: 'gold',
       hsnSac: '7113',
       quantity: '',
       rate: '',
@@ -67,6 +69,11 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
   const [cgstRate, setCgstRate] = useState(1.5);
   const [sgstRate, setSgstRate] = useState(1.5);
   const [makingCharges, setMakingCharges] = useState(0);
+  const [hallmarkAmount, setHallmarkAmount] = useState('');
+
+  // Other Products (Non-taxable items)
+  const [otherProducts, setOtherProducts] = useState([]);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -106,6 +113,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           editingInvoice.items.map((it, idx) => ({
             slNo: it.slNo || idx + 1,
             description: it.description || 'GOLD ORNAMENTS (916%)',
+            metal: it.metal || (isSilverItem(it) ? 'silver' : (isGoldItem(it) ? 'gold' : 'other')),
             hsnSac: it.hsnSac || '7113',
             quantity: it.quantity,
             rate: it.rate,
@@ -114,9 +122,25 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           }))
         );
       }
+      if (editingInvoice.otherProducts && Array.isArray(editingInvoice.otherProducts) && editingInvoice.otherProducts.length > 0) {
+        setOtherProducts(
+          editingInvoice.otherProducts.map((op, idx) => ({
+            slNo: op.slNo || idx + 1,
+            name: op.name || op.description || '',
+            amount: op.amount !== undefined ? op.amount : '',
+          }))
+        );
+      } else {
+        setOtherProducts([]);
+      }
       setCgstRate(editingInvoice.cgstRate ?? 1.5);
       setSgstRate(editingInvoice.sgstRate ?? 1.5);
       setMakingCharges(editingInvoice.makingCharges ?? 0);
+      setHallmarkAmount(
+        editingInvoice.hallmarkAmount !== undefined && editingInvoice.hallmarkAmount !== null
+          ? String(editingInvoice.hallmarkAmount)
+          : ''
+      );
     } else {
       // New invoice reset
       setInvoiceNumber('');
@@ -132,6 +156,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
         {
           slNo: 1,
           description: 'GOLD ORNAMENTS (916%)',
+          metal: 'gold',
           hsnSac: '7113',
           quantity: '',
           rate: '',
@@ -139,9 +164,11 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           amount: 0,
         },
       ]);
+      setOtherProducts([]);
       setCgstRate(1.5);
       setSgstRate(1.5);
       setMakingCharges(0);
+      setHallmarkAmount('');
     }
   }, [editingInvoice]);
 
@@ -195,12 +222,14 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
     setItems(updated);
   };
 
-  const addItemRow = () => {
+  const addItemRow = (metalType = 'gold') => {
+    const isSilver = metalType === 'silver';
     setItems([
       ...items,
       {
         slNo: items.length + 1,
-        description: 'GOLD ORNAMENTS (916%)',
+        description: isSilver ? 'SILVER ORNAMENTS (92.5%)' : 'GOLD ORNAMENTS (916%)',
+        metal: isSilver ? 'silver' : 'gold',
         hsnSac: '7113',
         quantity: '',
         rate: '',
@@ -219,14 +248,48 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
     setItems(filtered);
   };
 
-  // Live calculations: tax is NOT calculated on making charges
+  // Other Products row operations
+  const handleOtherProductChange = (index, field, value) => {
+    const updated = [...otherProducts];
+    updated[index][field] = value;
+    setOtherProducts(updated);
+  };
+
+  const addOtherProductRow = () => {
+    setOtherProducts([
+      ...otherProducts,
+      {
+        slNo: otherProducts.length + 1,
+        name: '',
+        amount: '',
+      },
+    ]);
+  };
+
+  const removeOtherProductRow = (index) => {
+    const filtered = otherProducts
+      .filter((_, i) => i !== index)
+      .map((item, idx) => ({
+        ...item,
+        slNo: idx + 1,
+      }));
+    setOtherProducts(filtered);
+  };
+
+  // Live calculations: tax is NOT applied to other products, making charges, or hallmark amount
+  const otherProductsTotal = otherProducts.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const otherProductsVal = Math.max(0, Math.round(otherProductsTotal * 100) / 100);
+
   const itemsTotal = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
   const taxableAmount = Math.round(itemsTotal * 100) / 100;
   const cgstAmount = Math.round(taxableAmount * (cgstRate / 100) * 100) / 100;
   const sgstAmount = Math.round(taxableAmount * (sgstRate / 100) * 100) / 100;
   const totalTaxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
   const makingChargesVal = Math.max(0, parseFloat(makingCharges) || 0);
-  const rawTotal = taxableAmount + totalTaxAmount + makingChargesVal;
+  const hallmarkVal = Math.max(0, parseFloat(hallmarkAmount) || 0);
+
+  // Directly add other products and hallmark amount without any tax
+  const rawTotal = taxableAmount + totalTaxAmount + makingChargesVal + otherProductsVal + hallmarkVal;
   const totalAmount = Math.round(rawTotal);
   const roundOff = Math.round((totalAmount - rawTotal) * 100) / 100;
   const amountInWords = convertNumberToWords(totalAmount);
@@ -243,7 +306,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
     const validItems = items.filter((it) => (parseFloat(it.quantity) || 0) > 0 && (parseFloat(it.rate) || 0) > 0);
     if (validItems.length === 0) {
-      setError('Please enter at least one valid gold item with Quantity and Rate.');
+      setError('Please enter at least one valid item with Quantity and Rate.');
       return;
     }
 
@@ -275,13 +338,23 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
         items: validItems.map((it, idx) => ({
           slNo: idx + 1,
           description: it.description,
+          metal: it.metal || (isSilverItem(it) ? 'silver' : (isGoldItem(it) ? 'gold' : 'other')),
           hsnSac: it.hsnSac || '7113',
           quantity: parseFloat(it.quantity),
           rate: parseFloat(it.rate),
           per: it.per || 'gms',
           amount: parseFloat(it.amount),
         })),
+        otherProducts: otherProducts
+          .map((op, idx) => ({
+            slNo: idx + 1,
+            name: (op.name || '').trim(),
+            amount: parseFloat(op.amount) || 0,
+          }))
+          .filter((op) => op.name || op.amount > 0),
+        otherProductsTotal: otherProductsVal,
         makingCharges: makingChargesVal,
+        hallmarkAmount: hallmarkVal,
         cgstRate,
         sgstRate,
         seller: defaultSeller,
@@ -615,17 +688,28 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 650, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-heading)' }}>
-                  Description of Gold Goods & Quantities
+                  Description of Goods & Quantities (Gold / Silver)
                 </h3>
-                <button
-                  type="button"
-                  onClick={addItemRow}
-                  className="btn-outline"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: 'var(--text-xs)' }}
-                >
-                  <Plus size={14} />
-                  <span>Add Line Item</span>
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => addItemRow('gold')}
+                    className="btn-outline"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: 'var(--text-xs)', borderColor: '#047857', color: '#047857' }}
+                  >
+                    <Plus size={14} />
+                    <span>Add Gold Item</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addItemRow('silver')}
+                    className="btn-outline"
+                    style={{ padding: '0.4rem 0.75rem', fontSize: 'var(--text-xs)', borderColor: '#475569', color: '#475569' }}
+                  >
+                    <Plus size={14} />
+                    <span>Add Silver Item</span>
+                  </button>
+                </div>
               </div>
 
               <div className="mobile-table-hint">
@@ -636,34 +720,42 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                 <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>#</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '220px' }}>Description of Goods</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '90px' }}>HSN/SAC</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '110px' }}>Quantity (Gms)</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px' }}>Rate (₹/gm)</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '70px' }}>Per</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px' }}>Amount (₹)</th>
-                      <th style={{ padding: '0.5rem', width: '40px' }}></th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '40px', textAlign: 'center', verticalAlign: 'middle' }}>#</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '220px', verticalAlign: 'middle' }}>Description of Goods</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '90px', verticalAlign: 'middle' }}>HSN/SAC</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '110px', verticalAlign: 'middle' }}>Quantity (Gms)</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px', verticalAlign: 'middle' }}>Rate (₹/gm)</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '70px', verticalAlign: 'middle' }}>Per</th>
+                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px', verticalAlign: 'middle' }}>Amount (₹)</th>
+                      <th style={{ padding: '0.5rem', width: '40px', verticalAlign: 'middle' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', verticalAlign: 'middle' }}>
                           {item.slNo}
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                           <input
                             type="text"
                             required
                             className="form-input"
                             style={{ padding: '0.45rem 0.65rem' }}
-                            placeholder="e.g. GOLD ORNAMENTS (916%)"
+                         
                             value={item.description}
-                            onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleItemChange(idx, 'description', val);
+                              if (isSilverItem({ description: val })) {
+                                handleItemChange(idx, 'metal', 'silver');
+                              } else if (isGoldItem({ description: val })) {
+                                handleItemChange(idx, 'metal', 'gold');
+                              }
+                            }}
                           />
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                           <input
                             type="text"
                             className="form-input"
@@ -672,7 +764,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                             onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                           <input
                             type="number"
                             step="0.001"
@@ -680,12 +772,12 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                             required
                             className="form-input"
                             style={{ padding: '0.45rem 0.65rem' }}
-                            placeholder="0.000"
+                            
                             value={item.quantity}
                             onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                           <input
                             type="number"
                             step="0.01"
@@ -698,7 +790,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                             onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
                           <input
                             type="text"
                             className="form-input"
@@ -707,15 +799,15 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                             onChange={(e) => handleItemChange(idx, 'per', e.target.value)}
                           />
                         </td>
-                        <td style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>
+                        <td style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                           ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
-                        <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                        <td style={{ padding: '0.5rem', textAlign: 'center', verticalAlign: 'middle' }}>
                           {items.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeItemRow(idx)}
-                              style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer' }}
+                              style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                               title="Remove item"
                             >
                               <Trash2 size={16} />
@@ -729,7 +821,113 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
               </div>
             </div>
 
-            {/* Section 4: Live Tax Summary & Calculations */}
+            {/* Section 4: Other Products (Non-Taxable, added directly to Total Amount) */}
+            <div style={{
+              background: 'var(--bg-elevated)',
+              padding: 'clamp(0.75rem, 1.5vw, 1.25rem)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+              marginBottom: '1.25rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 650, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-heading)' }}>
+                    Other Products & Accessories (Non-Taxable)
+                  </h3>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                    Tax does not apply to other products. Amount is added directly to total amount.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addOtherProductRow}
+                  className="btn-outline"
+                  style={{ padding: '0.4rem 0.8rem', fontSize: 'var(--text-xs)', borderColor: 'var(--gold-primary)', color: 'var(--gold-primary)' }}
+                >
+                  <Plus size={14} />
+                  <span>Add Other Product</span>
+                </button>
+              </div>
+
+              {otherProducts.length === 0 ? (
+                <div style={{
+                  padding: '1.15rem',
+                  textAlign: 'center',
+                  background: '#FFFFFF',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-dim)',
+                  fontSize: '0.82rem',
+                }}>
+                  No other products added. Click <strong>"+ Add Other Product"</strong> if selling non-taxable accessories (e.g. Jewellery Box, Silver Polish, etc.).
+                </div>
+              ) : (
+                <>
+                  <div className="mobile-table-hint">
+                    <span>↔ Swipe table horizontally to edit product name & amount</span>
+                  </div>
+
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table style={{ width: '100%', minWidth: '480px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                          <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '40px', textAlign: 'center', verticalAlign: 'middle' }}>#</th>
+                          <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', verticalAlign: 'middle' }}>Other Product Name</th>
+                          <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '180px', verticalAlign: 'middle' }}>Amount (₹)</th>
+                          <th style={{ padding: '0.5rem', width: '40px', verticalAlign: 'middle' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {otherProducts.map((op, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                              {idx + 1}
+                            </td>
+                            <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ padding: '0.45rem 0.65rem' }}
+                                placeholder="e.g. Jewellery Box, Cleaning Kit..."
+                                value={op.name}
+                                onChange={(e) => handleOtherProductChange(idx, 'name', e.target.value)}
+                              />
+                            </td>
+                            <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                              <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: 600 }}>₹</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  className="form-input"
+                                  style={{ padding: '0.45rem 0.65rem 0.45rem 1.6rem', fontWeight: 600 }}
+                                  placeholder="0.00"
+                                  value={op.amount}
+                                  onChange={(e) => handleOtherProductChange(idx, 'amount', e.target.value)}
+                                />
+                              </div>
+                            </td>
+                            <td style={{ padding: '0.5rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                              <button
+                                type="button"
+                                onClick={() => removeOtherProductRow(idx)}
+                                style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                                title="Remove product"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Section 5: Live Tax Summary & Calculations */}
             <div className="modal-calc-grid">
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--gold-primary)', marginBottom: '0.5rem' }}>
@@ -779,8 +977,32 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                     value={makingCharges}
                     onChange={(e) => setMakingCharges(e.target.value)}
                     placeholder="0.00"
+                    id="input-making-charges"
                   />
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>Hallmark Charges (₹):</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', background: 'var(--bg-card-hover)', padding: '1px 5px', borderRadius: '3px' }}>Non-taxable</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    className="form-input"
+                    style={{ width: '120px', padding: '0.25rem 0.5rem', textAlign: 'right', fontWeight: 600, fontSize: '0.85rem' }}
+                    value={hallmarkAmount}
+                    onChange={(e) => setHallmarkAmount(e.target.value)}
+                    placeholder="0.00"
+                    id="input-hallmark-amount"
+                  />
+                </div>
+                {otherProductsVal > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
+                    <span>Other Products (Non-taxable):</span>
+                    <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>+₹{otherProductsVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
                   <span>Round Off:</span>
                   <span style={{ color: roundOff >= 0 ? '#047857' : '#B91C1C', fontWeight: 600 }}>

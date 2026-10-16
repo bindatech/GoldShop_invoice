@@ -133,6 +133,25 @@ export const api = {
   },
 
   async downloadInvoicePDF(id, invoiceNumber) {
+    const safeNumber = (invoiceNumber || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '_');
+    const filename = `Invoice_${safeNumber}.pdf`;
+    const token = localStorage.getItem('gold_crm_token');
+
+    // 1. Direct native server download (No blob URL!)
+    // Directly streams from backend with Content-Type: application/pdf & Content-Disposition
+    // avoiding memory Blob conversion, blob: URLs, and download manager corruption.
+    if (token) {
+      const downloadUrl = `${API_BASE}/invoices/${id}/pdf?token=${encodeURIComponent(token)}`;
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.setAttribute('download', filename);
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      return;
+    }
+
+    // 2. Fallback via authenticated fetch if token is not in localStorage
     const res = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
       method: 'GET',
       headers: getHeaders(),
@@ -143,26 +162,20 @@ export const api = {
       throw new Error(errData.message || `Failed to download PDF (${res.status})`);
     }
 
-    // Receive invoice data response as blob format
-    const blob = await res.blob();
+    const arrayBuffer = await res.arrayBuffer();
+    const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+    const blobUrl = window.URL.createObjectURL(pdfBlob);
 
-    // Create temporary link with window.URL.createObjectURL
-    const blobUrl = window.URL.createObjectURL(blob);
-
-    // Set that link in dynamic anchor link
     const dynamicAnchor = document.createElement('a');
     dynamicAnchor.href = blobUrl;
-
-    // Set extension .pdf on that particular link
-    const safeNumber = (invoiceNumber || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '_');
-    dynamicAnchor.download = `Invoice_${safeNumber}.pdf`;
-
-    // Download the PDF
+    dynamicAnchor.download = filename;
     document.body.appendChild(dynamicAnchor);
     dynamicAnchor.click();
     document.body.removeChild(dynamicAnchor);
 
-    // Revoke object URL
-    window.URL.revokeObjectURL(blobUrl);
+    // Keep URL alive so browser download manager finishes without corrupting into .blob
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+    }, 60000);
   },
 };

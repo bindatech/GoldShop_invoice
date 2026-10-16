@@ -325,7 +325,10 @@ function buildInvoicePDF(invoice, stream) {
   });
 
   // Position Output Tax section neatly at bottom of items body
-  const taxY = currentY + itemsSectionHeight - 78;
+  const extraRowsCount =
+    (invoice.otherProducts && invoice.otherProducts.length > 0 ? invoice.otherProducts.length : 0) +
+    (invoice.hallmarkAmount && Number(invoice.hallmarkAmount) > 0 ? 1 : 0);
+  const taxY = currentY + itemsSectionHeight - (78 + extraRowsCount * 14);
 
   // Thin separator above making charges / tax section
   doc.moveTo(startX, taxY).lineTo(rightX, taxY).lineWidth(0.5).stroke('#000000');
@@ -340,15 +343,33 @@ function buildInvoicePDF(invoice, stream) {
   doc.text(formatCurrency(invoice.sgstAmount), cols[6].x + 2, taxY + 22, { width: cols[6].w - 8, align: 'right' });
 
   // MAKING CHARGES (bottom of output cgst and output sgst text portion)
-  doc.text('MAKING CHARGES', cols[1].x + 6, taxY + 38);
-  doc.text(formatCurrency(invoice.makingCharges || 0), cols[6].x + 2, taxY + 38, { width: cols[6].w - 8, align: 'right' });
+  let extraY = taxY + 38;
+  doc.text('MAKING CHARGES', cols[1].x + 6, extraY);
+  doc.text(formatCurrency(invoice.makingCharges || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
+
+  // HALLMARK CHARGES (Non-taxable)
+  if (invoice.hallmarkAmount && Number(invoice.hallmarkAmount) > 0) {
+    extraY += 14;
+    doc.text('HALLMARK CHARGES', cols[1].x + 6, extraY);
+    doc.text(formatCurrency(invoice.hallmarkAmount || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
+  }
+
+  // OTHER PRODUCTS (Non-taxable)
+  if (invoice.otherProducts && invoice.otherProducts.length > 0) {
+    invoice.otherProducts.forEach((op) => {
+      extraY += 14;
+      doc.text((op.name || 'OTHER PRODUCT').toUpperCase(), cols[1].x + 6, extraY);
+      doc.text(formatCurrency(op.amount || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
+    });
+  }
 
   // Round off row
+  extraY += 14;
   doc.font('Helvetica').fontSize(8);
-  doc.text('ROUND OFF', cols[1].x + 6, taxY + 54);
+  doc.text('ROUND OFF', cols[1].x + 6, extraY);
   const roundOffVal = Number(invoice.roundOff) || 0;
   const roundOffText = roundOffVal >= 0 ? formatCurrency(roundOffVal) : `-${formatCurrency(Math.abs(roundOffVal))}`;
-  doc.text(roundOffText, cols[6].x + 2, taxY + 54, { width: cols[6].w - 8, align: 'right' });
+  doc.text(roundOffText, cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
 
   currentY += itemsSectionHeight;
 

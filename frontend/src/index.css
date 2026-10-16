@@ -156,13 +156,79 @@ input, button, select, textarea {
   flex-wrap: wrap;
 }
 
-/* Responsive Dashboard Statistics Grid */
+/* Responsive Dashboard Statistics Grid (5 Key Performance Cards) */
 .dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(0.5rem, 0.9vw, 1rem);
   margin-bottom: clamp(1.25rem, 2.5vw, 2rem);
   width: 100%;
+}
+
+.dashboard-stat-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: clamp(0.65rem, 1vw, 1.1rem);
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 0.8vw, 0.9rem);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-stat-card:hover {
+  transform: translateY(-2.5px);
+  box-shadow: 0 8px 20px -4px rgba(184, 142, 40, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  border-color: rgba(184, 142, 40, 0.35);
+}
+
+.dashboard-stat-icon-wrapper {
+  width: clamp(38px, 3.4vw, 44px);
+  height: clamp(38px, 3.4vw, 44px);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.dashboard-stat-card:hover .dashboard-stat-icon-wrapper {
+  transform: scale(1.08);
+}
+
+.dashboard-stat-label {
+  font-size: clamp(0.62rem, 0.72vw, 0.72rem);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-weight: 650;
+  font-family: var(--font-heading);
+  line-height: 1.25;
+}
+
+.dashboard-stat-value {
+  font-size: clamp(1.02rem, 1.75vw, 1.35rem);
+  font-weight: 750;
+  color: var(--text-main);
+  margin-top: 0.15rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-stat-desc {
+  font-size: clamp(0.63rem, 0.75vw, 0.71rem);
+  color: var(--text-dim);
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Responsive CRM Filter Bar */
@@ -510,10 +576,28 @@ input, button, select, textarea {
   font-family: var(--font-heading);
 }
 
-/* Tablet Media Query (<= 1100px) */
-@media (max-width: 1100px) {
+/* Tablet & Medium Desktop (769px to 1200px): Balanced 2-tier Grid */
+@media (max-width: 1200px) and (min-width: 769px) {
   .dashboard-stats {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(6, 1fr) !important;
+    gap: 0.85rem !important;
+  }
+  /* Row 1: Invoices & Total Turnover (50% each) */
+  .dashboard-stat-card:nth-child(1) {
+    grid-column: span 3 !important;
+  }
+  .dashboard-stat-card:nth-child(2) {
+    grid-column: span 3 !important;
+  }
+  /* Row 2: Gold Billed, Silver Billed, Customer Base (33.3% each) */
+  .dashboard-stat-card:nth-child(3) {
+    grid-column: span 2 !important;
+  }
+  .dashboard-stat-card:nth-child(4) {
+    grid-column: span 2 !important;
+  }
+  .dashboard-stat-card:nth-child(5) {
+    grid-column: span 2 !important;
   }
 }
 
@@ -596,10 +680,14 @@ input, button, select, textarea {
     max-width: 100% !important;
   }
 
-  /* Dashboard Stats 1-column stack on iPhone 15 */
+  /* Dashboard Stats 2-column on tablet portrait / larger mobile */
   .dashboard-stats {
-    grid-template-columns: 1fr !important;
-    gap: 0.65rem !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .dashboard-stat-card:nth-child(5) {
+    grid-column: 1 / -1 !important;
   }
 
   /* iOS Native Bottom Sheet Modal on iPhone 15 */
@@ -794,6 +882,18 @@ input, button, select, textarea {
   .invoice-inner-table td {
     padding: 2.5px 2px !important;
     font-size: 7pt !important;
+}
+}
+
+/* Compact Mobile (<= 540px) 1-column stack */
+@media (max-width: 540px) {
+  .dashboard-stats {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  .dashboard-stat-card:nth-child(5) {
+    grid-column: auto !important;
   }
 }
 
