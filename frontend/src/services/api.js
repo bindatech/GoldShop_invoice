@@ -1,5 +1,6 @@
 const rawBackend = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
-const API_BASE = import.meta.env.VITE_API_URL || (rawBackend ? `${rawBackend}/api` : '/api');
+const rawBase = import.meta.env.VITE_API_URL || (rawBackend ? `${rawBackend}/api` : '/api');
+const API_BASE = rawBase.replace(/([^:]\/)\/+/g, '$1').replace(/\/+$/, '');
 
 const getHeaders = () => {
   const token = localStorage.getItem('gold_crm_token');
