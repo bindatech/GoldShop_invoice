@@ -44,9 +44,13 @@ export default function App() {
         .then((res) => {
           if (res.user) setUser(res.user);
         })
-        .catch(() => {
-          localStorage.removeItem('gold_crm_token');
-          setUser(null);
+        .catch((err) => {
+          // Only clear token on explicit auth failures, not transient network errors
+          const msg = (err.message || '').toLowerCase();
+          if (msg.includes('401') || msg.includes('not authorized') || msg.includes('token')) {
+            localStorage.removeItem('gold_crm_token');
+            setUser(null);
+          }
         })
         .finally(() => setAuthChecking(false));
     } else {
