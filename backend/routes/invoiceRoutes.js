@@ -11,7 +11,10 @@ const {
 } = require('../controllers/invoiceController');
 const { protect } = require('../middleware/auth');
 
-// All invoice routes require authentication
+// Public route - Invoice PDF download does not require authentication
+router.route('/:id/pdf').get(downloadInvoicePdf);
+
+// All subsequent invoice management routes require authentication
 router.use(protect);
 
 router.route('/customers/search').get(searchCustomers);
@@ -19,9 +22,6 @@ router.route('/customers/search').get(searchCustomers);
 router.route('/')
   .post(createInvoice)
   .get(getInvoices);
-
-router.route('/:id/pdf')
-  .get(downloadInvoicePdf);
 
 router.route('/:id')
   .get(getInvoiceById)

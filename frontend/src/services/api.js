@@ -142,33 +142,24 @@ export const api = {
   async downloadInvoicePDF(id, invoiceNumber) {
     const safeNumber = (invoiceNumber || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '_');
     const filename = `Invoice_${safeNumber}.pdf`;
+    const token = localStorage.getItem('gold_crm_token');
 
-    // Fetch official backend PDF with Bearer token header (compatible with production server)
-    const res = await apiFetch(`${API_BASE}/invoices/${id}/pdf`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
+    // Direct native server download (Zero blob: URLs!)
+    // Directly streams from backend with Content-Type: application/pdf & Content-Disposition: attachment
+    // The browser and download managers (IDM) download the file directly from the HTTP server URL.
+    const queryParams = token ? `?token=${encodeURIComponent(token)}` : '';
+    const downloadUrl = `${API_BASE}/invoices/${id}/pdf${queryParams}`;
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.message || `Failed to download PDF (${res.status})`);
-    }
-
-    const arrayBuffer = await res.arrayBuffer();
-    const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-    const blobUrl = window.URL.createObjectURL(pdfBlob);
-
-    const dynamicAnchor = document.createElement('a');
-    dynamicAnchor.style.display = 'none';
-    dynamicAnchor.href = blobUrl;
-    dynamicAnchor.download = filename;
-    document.body.appendChild(dynamicAnchor);
-    dynamicAnchor.click();
-    document.body.removeChild(dynamicAnchor);
-
-    // Keep URL alive for 60s so browser download manager / IDM finishes cleanly without naming it .blob
+    const anchor = document.createElement('a');
+    anchor.style.display = 'none';
+    anchor.href = downloadUrl;
+    anchor.setAttribute('download', filename);
+    document.body.appendChild(anchor);
+    anchor.click();
     setTimeout(() => {
-      window.URL.revokeObjectURL(blobUrl);
-    }, 60000);
+      if (document.body.contains(anchor)) {
+        document.body.removeChild(anchor);
+      }
+    }, 2000);
   },
 };

@@ -547,13 +547,12 @@ exports.searchCustomers = async (req, res) => {
 
 // @desc    Download invoice as official PDF
 // @route   GET /api/invoices/:id/pdf
-// @access  Private
+// @desc    Download invoice PDF directly
+// @route   GET /api/invoices/:id/pdf
+// @access  Public (No authentication required to download)
 exports.downloadInvoicePdf = async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id,
-    });
+    const invoice = await Invoice.findById(req.params.id);
 
     if (!invoice) {
       return res.status(404).json({
