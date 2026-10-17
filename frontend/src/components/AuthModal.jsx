@@ -197,7 +197,7 @@ export default function AuthModal({ onLoginSuccess }) {
           }}>
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#966F17', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Default Login Credentials
+                Default Login Credentials,
               </div>
               <div style={{ fontSize: '0.8rem', color: '#1E293B', marginTop: '2px' }}>
                 <span>Email: <strong>admin@gmail.com</strong></span>
