@@ -1,5 +1,11 @@
-const rawBackend = (import.meta.env.VITE_BACKEND_URL || '').trim().replace(/\/+$/, '');
-const rawBase = import.meta.env.VITE_API_URL || (rawBackend ? `${rawBackend}/api` : '/api');
+const isProd = import.meta.env.PROD;
+const rawBackend = (import.meta.env.VITE_BACKEND_URL || 'https://server2.vais.co.in/goldshopbill').trim().replace(/\/+$/, '');
+let rawBase = import.meta.env.VITE_API_URL;
+if (isProd && (!rawBase || rawBase.includes('localhost'))) {
+  rawBase = rawBackend ? `${rawBackend}/api` : '/api';
+} else if (!rawBase) {
+  rawBase = rawBackend ? `${rawBackend}/api` : '/api';
+}
 const API_BASE = rawBase.replace(/([^:])\/{2,}/g, '$1/').replace(/\/+$/, '');
 
 const getHeaders = () => {
