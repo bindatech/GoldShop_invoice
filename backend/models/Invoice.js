@@ -33,6 +33,10 @@ const invoiceItemSchema = new mongoose.Schema({
     type: String,
     default: 'gms',
   },
+  amount: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const otherProductSchema = new mongoose.Schema({

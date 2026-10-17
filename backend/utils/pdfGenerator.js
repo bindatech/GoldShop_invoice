@@ -1,5 +1,6 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const { convertNumberToWordsIndian } = require('./numberToWords');
 
 /**
  * Format currency in Indian numbering format
@@ -110,7 +111,54 @@ function buildInvoicePDF(invoice, stream) {
   };
 
   const buyer = invoice.buyer || {};
-  const items = invoice.items || [];
+  const rawItems = invoice.items || [];
+  const items = rawItems.map((item, index) => {
+    const qty = Number(item.quantity) || 0;
+    const rate = Number(item.rate) || 0;
+    const itemAmount = item.amount !== undefined && item.amount !== null
+      ? Number(item.amount)
+      : Math.round(qty * rate * 100) / 100;
+    return {
+      ...item,
+      slNo: item.slNo || index + 1,
+      quantity: qty,
+      rate,
+      amount: itemAmount,
+      per: item.per || 'gms',
+      hsnSac: item.hsnSac || '7113',
+    };
+  });
+
+  const itemsGoldTotal = items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+  const taxableAmount = itemsGoldTotal > 0 ? itemsGoldTotal : (Number(invoice.taxableAmount) || 0);
+
+  const cgstRate = Number(invoice.cgstRate) >= 0 ? Number(invoice.cgstRate) : 1.5;
+  const sgstRate = Number(invoice.sgstRate) >= 0 ? Number(invoice.sgstRate) : 1.5;
+  const cgstAmount = invoice.cgstAmount !== undefined && invoice.cgstAmount !== null
+    ? Number(invoice.cgstAmount)
+    : Math.round(taxableAmount * (cgstRate / 100) * 100) / 100;
+  const sgstAmount = invoice.sgstAmount !== undefined && invoice.sgstAmount !== null
+    ? Number(invoice.sgstAmount)
+    : Math.round(taxableAmount * (sgstRate / 100) * 100) / 100;
+  const totalTaxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+
+  const makingCharges = Number(invoice.makingCharges) || 0;
+  const hallmarkAmount = Number(invoice.hallmarkAmount) || 0;
+  const otherProductsList = (invoice.otherProducts || []).filter(
+    (op) => (op.name && op.name.trim()) || Number(op.amount) > 0
+  );
+  const otherProductsTotal = Number(invoice.otherProductsTotal) || otherProductsList.reduce((sum, op) => sum + (Number(op.amount) || 0), 0);
+
+  const rawTotal = taxableAmount + totalTaxAmount + makingCharges + hallmarkAmount + otherProductsTotal;
+  const totalAmount = invoice.totalAmount !== undefined && invoice.totalAmount !== null && Number(invoice.totalAmount) > 0
+    ? Number(invoice.totalAmount)
+    : Math.round(rawTotal);
+  const roundOff = invoice.roundOff !== undefined && invoice.roundOff !== null
+    ? Number(invoice.roundOff)
+    : Math.round((totalAmount - rawTotal) * 100) / 100;
+
+  const amountInWords = invoice.amountInWords || convertNumberToWordsIndian(totalAmount);
+  const taxAmountInWords = invoice.taxAmountInWords || convertNumberToWordsIndian(totalTaxAmount);
 
   // ==========================================
   // 1. TOP TITLE BANNER (height = 24)
@@ -246,20 +294,20 @@ function buildInvoicePDF(invoice, stream) {
   // ==========================================
   // Column definitions (Sum = 555 exact)
   // 0: Sl No       (30)
-  // 1: Description (245)
+  // 1: Description (235)
   // 2: HSN/SAC     (50)
   // 3: Quantity    (55)
   // 4: Rate        (60)
   // 5: per         (35)
-  // 6: Amount      (80)
+  // 6: Amount      (90)
   const cols = [
     { x: startX, w: 30, align: 'center', label: 'Sl\nNo' },
-    { x: startX + 30, w: 245, align: 'left', label: 'Description of Goods' },
-    { x: startX + 30 + 245, w: 50, align: 'center', label: 'HSN/SAC' },
-    { x: startX + 30 + 245 + 50, w: 55, align: 'right', label: 'Quantity' },
-    { x: startX + 30 + 245 + 50 + 55, w: 60, align: 'right', label: 'Rate' },
-    { x: startX + 30 + 245 + 50 + 55 + 60, w: 35, align: 'center', label: 'per' },
-    { x: startX + 30 + 245 + 50 + 55 + 60 + 35, w: 80, align: 'right', label: 'Amount' },
+    { x: startX + 30, w: 235, align: 'left', label: 'Description of Goods' },
+    { x: startX + 30 + 235, w: 50, align: 'center', label: 'HSN/SAC' },
+    { x: startX + 30 + 235 + 50, w: 55, align: 'right', label: 'Quantity' },
+    { x: startX + 30 + 235 + 50 + 55, w: 60, align: 'right', label: 'Rate' },
+    { x: startX + 30 + 235 + 50 + 55 + 60, w: 35, align: 'center', label: 'per' },
+    { x: startX + 30 + 235 + 50 + 55 + 60 + 35, w: 90, align: 'right', label: 'Amount' },
   ];
 
   const theadHeight = 22;
@@ -325,9 +373,7 @@ function buildInvoicePDF(invoice, stream) {
   });
 
   // Position Output Tax section neatly at bottom of items body
-  const extraRowsCount =
-    (invoice.otherProducts && invoice.otherProducts.length > 0 ? invoice.otherProducts.length : 0) +
-    (invoice.hallmarkAmount && Number(invoice.hallmarkAmount) > 0 ? 1 : 0);
+  const extraRowsCount = otherProductsList.length + (hallmarkAmount > 0 ? 1 : 0);
   const taxY = currentY + itemsSectionHeight - (78 + extraRowsCount * 14);
 
   // Thin separator above making charges / tax section
@@ -335,28 +381,28 @@ function buildInvoicePDF(invoice, stream) {
 
   // OUTPUT CGST (no space in CGST)
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000');
-  doc.text(`OUTPUT CGST @ ${invoice.cgstRate || 1.5}%`, cols[1].x + 6, taxY + 6);
-  doc.text(formatCurrency(invoice.cgstAmount), cols[6].x + 2, taxY + 6, { width: cols[6].w - 8, align: 'right' });
+  doc.text(`OUTPUT CGST @ ${cgstRate}%`, cols[1].x + 6, taxY + 6);
+  doc.text(formatCurrency(cgstAmount), cols[6].x + 2, taxY + 6, { width: cols[6].w - 8, align: 'right' });
 
   // OUTPUT SGST (no space in SGST)
-  doc.text(`OUTPUT SGST @ ${invoice.sgstRate || 1.5}%`, cols[1].x + 6, taxY + 22);
-  doc.text(formatCurrency(invoice.sgstAmount), cols[6].x + 2, taxY + 22, { width: cols[6].w - 8, align: 'right' });
+  doc.text(`OUTPUT SGST @ ${sgstRate}%`, cols[1].x + 6, taxY + 22);
+  doc.text(formatCurrency(sgstAmount), cols[6].x + 2, taxY + 22, { width: cols[6].w - 8, align: 'right' });
 
   // MAKING CHARGES (bottom of output cgst and output sgst text portion)
   let extraY = taxY + 38;
   doc.text('MAKING CHARGES', cols[1].x + 6, extraY);
-  doc.text(formatCurrency(invoice.makingCharges || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
+  doc.text(formatCurrency(makingCharges), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
 
   // HALLMARK CHARGES (Non-taxable)
-  if (invoice.hallmarkAmount && Number(invoice.hallmarkAmount) > 0) {
+  if (hallmarkAmount > 0) {
     extraY += 14;
     doc.text('HALLMARK CHARGES', cols[1].x + 6, extraY);
-    doc.text(formatCurrency(invoice.hallmarkAmount || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
+    doc.text(formatCurrency(hallmarkAmount), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
   }
 
   // OTHER PRODUCTS (Non-taxable)
-  if (invoice.otherProducts && invoice.otherProducts.length > 0) {
-    invoice.otherProducts.forEach((op) => {
+  if (otherProductsList.length > 0) {
+    otherProductsList.forEach((op) => {
       extraY += 14;
       doc.text((op.name || 'OTHER PRODUCT').toUpperCase(), cols[1].x + 6, extraY);
       doc.text(formatCurrency(op.amount || 0), cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
@@ -367,8 +413,7 @@ function buildInvoicePDF(invoice, stream) {
   extraY += 14;
   doc.font('Helvetica').fontSize(8);
   doc.text('ROUND OFF', cols[1].x + 6, extraY);
-  const roundOffVal = Number(invoice.roundOff) || 0;
-  const roundOffText = roundOffVal >= 0 ? formatCurrency(roundOffVal) : `-${formatCurrency(Math.abs(roundOffVal))}`;
+  const roundOffText = roundOff >= 0 ? formatCurrency(roundOff) : `-${formatCurrency(Math.abs(roundOff))}`;
   doc.text(roundOffText, cols[6].x + 2, extraY, { width: cols[6].w - 8, align: 'right' });
 
   currentY += itemsSectionHeight;
@@ -388,19 +433,20 @@ function buildInvoicePDF(invoice, stream) {
   doc.text(items[0]?.per || 'gms', cols[5].x + 2, currentY + 5.5, { width: cols[5].w - 4, align: 'center' });
 
   // Total amount: rendered with official Indian Rupee currency logo
-  const totalAmountStr = formatCurrency(invoice.totalAmount);
+  const totalAmountStr = formatCurrency(totalAmount);
   if (rupeeFontAvailable) {
-    doc.font('RupeeFont').fontSize(9.5).fillColor('#000000').text(`₹ ${totalAmountStr}`, cols[6].x + 2, currentY + 5, {
+    doc.font('RupeeFont').fontSize(9).fillColor('#000000').text(`₹ ${totalAmountStr}`, cols[6].x + 2, currentY + 5.5, {
       width: cols[6].w - 8,
       align: 'right',
+      lineBreak: false,
     });
   } else {
-    doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#000000');
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000');
     const amountW = doc.widthOfString(totalAmountStr);
     const rightEdge = cols[6].x + cols[6].w - 8;
     const textX = rightEdge - amountW;
-    drawIndianRupee(doc, textX - 11, currentY + 5.5, 8.5);
-    doc.text(totalAmountStr, textX, currentY + 5);
+    drawIndianRupee(doc, textX - 10, currentY + 6, 8);
+    doc.text(totalAmountStr, textX, currentY + 5.5, { lineBreak: false });
   }
 
   currentY += totalRowHeight;
@@ -411,7 +457,10 @@ function buildInvoicePDF(invoice, stream) {
   const wordsHeight = 24;
   doc.rect(startX, currentY, contentWidth, wordsHeight).lineWidth(0.75).stroke('#000000');
   doc.font('Helvetica').fontSize(6.5).fillColor('#555555').text('Amount Chargeable (in Words)', startX + 7, currentY + 3);
-  doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000').text(invoice.amountInWords || '—', startX + 7, currentY + 12);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000').text(amountInWords, startX + 7, currentY + 12, {
+    width: 480,
+    lineBreak: false,
+  });
   doc.font('Helvetica-Bold').fontSize(7.5).text('E. & O. E', rightX - 60, currentY + 7);
 
   currentY += wordsHeight;
@@ -479,14 +528,13 @@ function buildInvoicePDF(invoice, stream) {
     doc.moveTo(startX + offset, currentY).lineTo(startX + offset, currentY + taxBodyH).lineWidth(0.5).stroke('#000000');
   });
 
-  const totalTaxAmount = (Number(invoice.cgstAmount) || 0) + (Number(invoice.sgstAmount) || 0);
   doc.font('Helvetica').fontSize(7.5).fillColor('#000000');
   doc.text(items[0]?.hsnSac || '7113', taxCols[0].x + 2, currentY + 5, { width: taxCols[0].w - 4, align: 'center' });
-  doc.text(formatCurrency(invoice.taxableAmount), taxCols[1].x + 2, currentY + 5, { width: taxCols[1].w - 8, align: 'right' });
-  doc.text(`${invoice.cgstRate || 1.5}%`, taxCols[2].x + 2, currentY + 5, { width: taxCols[2].w - 4, align: 'center' });
-  doc.text(formatCurrency(invoice.cgstAmount), taxCols[3].x + 2, currentY + 5, { width: taxCols[3].w - 8, align: 'right' });
-  doc.text(`${invoice.sgstRate || 1.5}%`, taxCols[4].x + 2, currentY + 5, { width: taxCols[4].w - 4, align: 'center' });
-  doc.text(formatCurrency(invoice.sgstAmount), taxCols[5].x + 2, currentY + 5, { width: taxCols[5].w - 8, align: 'right' });
+  doc.text(formatCurrency(taxableAmount), taxCols[1].x + 2, currentY + 5, { width: taxCols[1].w - 8, align: 'right' });
+  doc.text(`${cgstRate}%`, taxCols[2].x + 2, currentY + 5, { width: taxCols[2].w - 4, align: 'center' });
+  doc.text(formatCurrency(cgstAmount), taxCols[3].x + 2, currentY + 5, { width: taxCols[3].w - 8, align: 'right' });
+  doc.text(`${sgstRate}%`, taxCols[4].x + 2, currentY + 5, { width: taxCols[4].w - 4, align: 'center' });
+  doc.text(formatCurrency(sgstAmount), taxCols[5].x + 2, currentY + 5, { width: taxCols[5].w - 8, align: 'right' });
   doc.font('Helvetica-Bold').text(formatCurrency(totalTaxAmount), taxCols[6].x + 2, currentY + 5, {
     width: taxCols[6].w - 8,
     align: 'right',
@@ -505,11 +553,11 @@ function buildInvoicePDF(invoice, stream) {
 
   doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000');
   doc.text('Total', taxCols[0].x + 2, currentY + 5, { width: taxCols[0].w - 4, align: 'center' });
-  doc.text(formatCurrency(invoice.taxableAmount), taxCols[1].x + 2, currentY + 5, { width: taxCols[1].w - 8, align: 'right' });
+  doc.text(formatCurrency(taxableAmount), taxCols[1].x + 2, currentY + 5, { width: taxCols[1].w - 8, align: 'right' });
   doc.font('Helvetica').fontSize(8).text('—', taxCols[2].x + 2, currentY + 5, { width: taxCols[2].w - 4, align: 'center' });
-  doc.font('Helvetica-Bold').text(formatCurrency(invoice.cgstAmount), taxCols[3].x + 2, currentY + 5, { width: taxCols[3].w - 8, align: 'right' });
+  doc.font('Helvetica-Bold').text(formatCurrency(cgstAmount), taxCols[3].x + 2, currentY + 5, { width: taxCols[3].w - 8, align: 'right' });
   doc.font('Helvetica').text('—', taxCols[4].x + 2, currentY + 5, { width: taxCols[4].w - 4, align: 'center' });
-  doc.font('Helvetica-Bold').text(formatCurrency(invoice.sgstAmount), taxCols[5].x + 2, currentY + 5, { width: taxCols[5].w - 8, align: 'right' });
+  doc.font('Helvetica-Bold').text(formatCurrency(sgstAmount), taxCols[5].x + 2, currentY + 5, { width: taxCols[5].w - 8, align: 'right' });
   doc.text(formatCurrency(totalTaxAmount), taxCols[6].x + 2, currentY + 5, { width: taxCols[6].w - 8, align: 'right' });
 
   currentY += taxTotalH;
@@ -521,7 +569,7 @@ function buildInvoicePDF(invoice, stream) {
   doc.rect(startX, currentY, contentWidth, taxWordsH).lineWidth(0.75).stroke('#000000');
   doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#000000');
   doc.text('Tax Amount (in words) : ', startX + 7, currentY + 5, { continued: true });
-  doc.font('Helvetica').text(invoice.taxAmountInWords || '—');
+  doc.font('Helvetica').text(taxAmountInWords);
 
   currentY += taxWordsH;
 

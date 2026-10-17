@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, X, Edit3, ArrowLeft, Download } from 'lucide-react';
 import { api } from '../services/api';
+import { convertNumberToWords } from '../utils/numberToWords';
 
 export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   if (!invoice) return null;
@@ -156,21 +157,38 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   };
 
   const totalQuantity = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
-  // Adjusted spacer to ensure bottom box never overflows or clips A4 page
-  const goodsSpacerHeight = Math.max(20, 110 - (items.length - 1) * 20);
-
-  // Derived totals ensuring tax is strictly on gold items, never on making charges
-  const itemsGoldTotal = items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
   const makingCharges = Number(invoice.makingCharges) || 0;
+  const hallmarkAmount = Number(invoice.hallmarkAmount) || 0;
+  const otherProductsList = (invoice.otherProducts || []).filter(op => (op.name && op.name.trim()) || Number(op.amount) > 0);
+  const otherProductsTotal = Number(invoice.otherProductsTotal) || otherProductsList.reduce((sum, op) => sum + (Number(op.amount) || 0), 0);
+
+  const extraRowsCount = otherProductsList.length + (hallmarkAmount > 0 ? 1 : 0);
+  // Adjusted spacer to ensure bottom box never overflows or clips A4 page
+  const goodsSpacerHeight = Math.max(10, 110 - (items.length - 1) * 20 - extraRowsCount * 20);
+
+  // Derived totals ensuring tax is strictly on gold/silver items, never on making charges, hallmark, or other products
+  const itemsGoldTotal = items.reduce((acc, it) => acc + (Number(it.amount !== undefined ? it.amount : (Number(it.quantity) * Number(it.rate))) || 0), 0);
   const taxableValue = itemsGoldTotal > 0 ? itemsGoldTotal : (Number(invoice.taxableAmount) || 0);
   const cgstRate = Number(invoice.cgstRate) >= 0 ? Number(invoice.cgstRate) : 1.5;
   const sgstRate = Number(invoice.sgstRate) >= 0 ? Number(invoice.sgstRate) : 1.5;
-  const cgstAmount = Math.round(taxableValue * (cgstRate / 100) * 100) / 100;
-  const sgstAmount = Math.round(taxableValue * (sgstRate / 100) * 100) / 100;
+  const cgstAmount = invoice.cgstAmount !== undefined && invoice.cgstAmount !== null
+    ? Number(invoice.cgstAmount)
+    : Math.round(taxableValue * (cgstRate / 100) * 100) / 100;
+  const sgstAmount = invoice.sgstAmount !== undefined && invoice.sgstAmount !== null
+    ? Number(invoice.sgstAmount)
+    : Math.round(taxableValue * (sgstRate / 100) * 100) / 100;
   const totalTaxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
-  const rawTotal = taxableValue + totalTaxAmount + makingCharges;
-  const totalAmount = Math.round(rawTotal);
-  const roundOff = Math.round((totalAmount - rawTotal) * 100) / 100;
+
+  // Final Payable Amount = Taxable Product Value + CGST + SGST + Making Charges + Hallmark Charges + Other Non-Taxable Products + Round Off
+  const rawTotal = taxableValue + totalTaxAmount + makingCharges + hallmarkAmount + otherProductsTotal;
+  const totalAmount = invoice.totalAmount !== undefined && invoice.totalAmount !== null && Number(invoice.totalAmount) > 0
+    ? Number(invoice.totalAmount)
+    : Math.round(rawTotal);
+  const roundOff = invoice.roundOff !== undefined && invoice.roundOff !== null
+    ? Number(invoice.roundOff)
+    : Math.round((totalAmount - rawTotal) * 100) / 100;
+  const amountInWords = invoice.amountInWords || convertNumberToWords(totalAmount);
+  const taxAmountInWords = invoice.taxAmountInWords || convertNumberToWords(totalTaxAmount);
 
   return (
     <div className="modal-backdrop">
@@ -425,12 +443,12 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                       <thead>
                         <tr style={{ background: '#f8f8f8', borderBottom: '1px solid #000' }}>
                           <th style={{ width: '5%', textAlign: 'center' }}>Sl<br />No</th>
-                          <th style={{ width: '45%', textAlign: 'center' }}>Description of Goods</th>
+                          <th style={{ width: '43%', textAlign: 'center' }}>Description of Goods</th>
                           <th style={{ width: '10%', textAlign: 'center' }}>HSN/SAC</th>
                           <th style={{ width: '11%', textAlign: 'center' }}>Quantity</th>
                           <th style={{ width: '11%', textAlign: 'center' }}>Rate</th>
                           <th style={{ width: '6%', textAlign: 'center' }}>per</th>
-                          <th style={{ width: '12%', textAlign: 'center' }}>Amount</th>
+                          <th style={{ width: '14%', textAlign: 'center' }}>Amount</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -455,7 +473,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                               {item.per || 'gms'}
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                              {formatCurrency(item.amount)}
+                              {formatCurrency(item.amount !== undefined && item.amount !== null ? item.amount : (Number(item.quantity) * Number(item.rate)))}
                             </td>
                           </tr>
                         ))}
@@ -517,7 +535,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                         </tr>
 
                         {/* Hallmark Charges Row (Non-Taxable, direct addition) */}
-                        {Number(invoice.hallmarkAmount || 0) > 0 && (
+                        {hallmarkAmount > 0 && (
                           <tr style={{ height: '20px' }}>
                             <td></td>
                             <td style={{ textAlign: 'left', padding: '2px 5px', fontWeight: 'bold', fontSize: '9pt', color: '#111827' }}>
@@ -528,13 +546,13 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                             <td></td>
                             <td></td>
                             <td style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '9pt' }}>
-                              {formatCurrency(invoice.hallmarkAmount)}
+                              {formatCurrency(hallmarkAmount)}
                             </td>
                           </tr>
                         )}
 
                         {/* Other Products Rows (Non-Taxable, direct addition) */}
-                        {(invoice.otherProducts || []).map((op, idx) => (
+                        {otherProductsList.map((op, idx) => (
                           <tr key={`other-prod-${idx}`} style={{ height: '20px' }}>
                             <td></td>
                             <td style={{ textAlign: 'left', padding: '2px 5px', fontWeight: 'bold', fontSize: '9pt', color: '#111827' }}>
@@ -595,7 +613,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                       <div>
                         <span style={{ fontSize: '8.5pt' }}>Amount Chargeable (in Words)</span>
                         <div style={{ fontWeight: 'bold', fontSize: '9pt', marginTop: '1px' }}>
-                          {invoice.amountInWords || '—'}
+                          {amountInWords}
                         </div>
                       </div>
                       <div style={{ fontWeight: 'bold', fontSize: '8.5pt' }}>E. & O. E</div>
@@ -708,7 +726,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                 <tr>
                   <td colSpan="2" style={{ padding: '3px 8px', borderTop: '1px solid #000', borderBottom: '1px solid #000', fontSize: '8.5pt' }}>
                     <strong>Tax Amount (in words) : </strong>
-                    <span>{invoice.taxAmountInWords || '—'}</span>
+                    <span>{taxAmountInWords}</span>
                   </td>
                 </tr>
 

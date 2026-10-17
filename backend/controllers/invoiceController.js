@@ -421,7 +421,9 @@ exports.updateInvoice = async (req, res) => {
       (items && Array.isArray(items) && items.length > 0) ||
       makingCharges !== undefined ||
       hallmarkAmount !== undefined ||
-      otherProducts !== undefined
+      otherProducts !== undefined ||
+      cgstRate !== undefined ||
+      sgstRate !== undefined
     ) {
       const itemsToCalculate = items && Array.isArray(items) && items.length > 0 ? items : invoice.items;
       const otherProductsToCalculate = otherProducts !== undefined ? otherProducts : (invoice.otherProducts || []);

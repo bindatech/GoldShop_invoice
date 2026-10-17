@@ -355,8 +355,15 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
         otherProductsTotal: otherProductsVal,
         makingCharges: makingChargesVal,
         hallmarkAmount: hallmarkVal,
+        taxableAmount,
         cgstRate,
+        cgstAmount,
         sgstRate,
+        sgstAmount,
+        roundOff,
+        totalAmount,
+        amountInWords,
+        taxAmountInWords,
         seller: defaultSeller,
       };
 
