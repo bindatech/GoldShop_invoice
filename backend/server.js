@@ -14,6 +14,14 @@ const app = express();
 connectDB();
 
 // Middleware
+// Normalize incoming request URLs (collapse duplicate slashes, e.g. //api -> /api)
+app.use((req, res, next) => {
+  if (req.url && req.url.includes('//')) {
+    req.url = req.url.replace(/\/{2,}/g, '/');
+  }
+  next();
+});
+
 app.use(morgan('dev'));
 app.use(
   cors({

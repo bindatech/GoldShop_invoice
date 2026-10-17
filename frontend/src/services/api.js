@@ -1,6 +1,6 @@
-const rawBackend = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+const rawBackend = (import.meta.env.VITE_BACKEND_URL || '').trim().replace(/\/+$/, '');
 const rawBase = import.meta.env.VITE_API_URL || (rawBackend ? `${rawBackend}/api` : '/api');
-const API_BASE = rawBase.replace(/([^:]\/)\/+/g, '$1').replace(/\/+$/, '');
+const API_BASE = rawBase.replace(/([^:])\/{2,}/g, '$1/').replace(/\/+$/, '');
 
 const getHeaders = () => {
   const token = localStorage.getItem('gold_crm_token');
@@ -139,51 +139,38 @@ export const api = {
     return handleResponse(res);
   },
 
-  // async downloadInvoicePDF(id, invoiceNumber) {
-  //   const safeNumber = (invoiceNumber || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '_');
-  //   const filename = `Invoice_${safeNumber}.pdf`;
-  //   const token = localStorage.getItem('gold_crm_token');
-
-  //   // Direct native server download (Zero blob: URLs!)
-  //   // Directly streams from backend with Content-Type: application/pdf & Content-Disposition: attachment
-  //   // The browser and download managers (IDM) download the file directly from the HTTP server URL.
-  //   const queryParams = token ? `?token=${encodeURIComponent(token)}` : '';
-  //   const downloadUrl = `${API_BASE}/invoices/${id}/pdf${queryParams}`;
-
-  //   const anchor = document.createElement('a');
-  //   anchor.style.display = 'none';
-  //   anchor.href = downloadUrl;
-  //   anchor.setAttribute('download', filename);
-  //   document.body.appendChild(anchor);
-
-  //   anchor.click();
-
-   async downloadInvoicePDF(id, invoiceNumber) {
+  async downloadInvoicePDF(id, invoiceNumber) {
     const safeNumber = (invoiceNumber || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '_');
     const filename = `Invoice_${safeNumber}.pdf`;
+
     // 1. Fetch PDF with explicit Bearer Authorization header
     const res = await apiFetch(`${API_BASE}/invoices/${id}/pdf`, {
       method: 'GET',
       headers: getHeaders(), // Passes Bearer token header reliably
     });
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.message || `Failed to download PDF (${res.status})`);
     }
+
     // 2. Convert stream to blob and trigger download
     const arrayBuffer = await res.arrayBuffer();
     const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
     const blobUrl = window.URL.createObjectURL(pdfBlob);
+
     const anchor = document.createElement('a');
     anchor.style.display = 'none';
     anchor.href = blobUrl;
     anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
+
     setTimeout(() => {
       if (document.body.contains(anchor)) {
         document.body.removeChild(anchor);
       }
+      window.URL.revokeObjectURL(blobUrl);
     }, 2000);
   },
 };
