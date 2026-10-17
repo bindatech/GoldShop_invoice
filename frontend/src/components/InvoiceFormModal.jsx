@@ -90,7 +90,25 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
       setDeliveryNote(editingInvoice.deliveryNote || '');
       setPaymentMode(editingInvoice.paymentMode || 'Cash');
       setSupplierRef(editingInvoice.supplierRef || '');
-      setOtherReferences(editingInvoice.otherReferences || '');
+      let rawOtherRef = editingInvoice.otherReferences || '';
+      let restoredHallmark = editingInvoice.hallmarkAmount;
+      let restoredOtherProducts = editingInvoice.otherProducts;
+      if (rawOtherRef.includes('[META:')) {
+        try {
+          const metaStr = rawOtherRef.match(/\[META:(.*?)\]/)?.[1];
+          if (metaStr) {
+            const parsed = JSON.parse(metaStr);
+            if ((restoredHallmark === undefined || restoredHallmark === null || Number(restoredHallmark) === 0) && parsed.hm !== undefined) {
+              restoredHallmark = parsed.hm;
+            }
+            if ((!restoredOtherProducts || restoredOtherProducts.length === 0) && parsed.ops && Array.isArray(parsed.ops)) {
+              restoredOtherProducts = parsed.ops;
+            }
+          }
+        } catch (e) {}
+        rawOtherRef = rawOtherRef.replace(/\[META:.*?\]/g, '').trim();
+      }
+      setOtherReferences(rawOtherRef);
       setBuyerOrderNo(editingInvoice.buyerOrderNo || '');
       setBuyerOrderDate(editingInvoice.buyerOrderDate || '');
       setDespatchDocNo(editingInvoice.despatchDocNo || '');
@@ -122,9 +140,9 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           }))
         );
       }
-      if (editingInvoice.otherProducts && Array.isArray(editingInvoice.otherProducts) && editingInvoice.otherProducts.length > 0) {
+      if (restoredOtherProducts && Array.isArray(restoredOtherProducts) && restoredOtherProducts.length > 0) {
         setOtherProducts(
-          editingInvoice.otherProducts.map((op, idx) => ({
+          restoredOtherProducts.map((op, idx) => ({
             slNo: op.slNo || idx + 1,
             name: op.name || op.description || '',
             amount: op.amount !== undefined ? op.amount : '',
@@ -137,8 +155,8 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
       setSgstRate(editingInvoice.sgstRate ?? 1.5);
       setMakingCharges(editingInvoice.makingCharges ?? 0);
       setHallmarkAmount(
-        editingInvoice.hallmarkAmount !== undefined && editingInvoice.hallmarkAmount !== null
-          ? String(editingInvoice.hallmarkAmount)
+        restoredHallmark !== undefined && restoredHallmark !== null && Number(restoredHallmark) > 0
+          ? String(restoredHallmark)
           : ''
       );
     } else {
@@ -312,6 +330,22 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
     setSaving(true);
     try {
+      const sanitizedOtherProducts = otherProducts
+        .map((op, idx) => ({
+          slNo: idx + 1,
+          name: (op.name || '').trim(),
+          amount: parseFloat(op.amount) || 0,
+        }))
+        .filter((op) => op.name || op.amount > 0);
+
+      const cleanOtherRef = otherReferences.replace(/\[META:.*?\]/g, '').trim();
+      const metaTag = (hallmarkVal > 0 || sanitizedOtherProducts.length > 0)
+        ? `[META:${JSON.stringify({ hm: hallmarkVal, ops: sanitizedOtherProducts })}]`
+        : '';
+      const encodedOtherReferences = cleanOtherRef
+        ? (metaTag ? `${cleanOtherRef} ${metaTag}` : cleanOtherRef)
+        : metaTag;
+
       const payload = {
         invoiceNumber,
         invoiceDate,
@@ -319,7 +353,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
         deliveryNote,
         paymentMode,
         supplierRef,
-        otherReferences,
+        otherReferences: encodedOtherReferences,
         buyerOrderNo,
         buyerOrderDate,
         despatchDocNo,
@@ -345,13 +379,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           per: it.per || 'gms',
           amount: parseFloat(it.amount),
         })),
-        otherProducts: otherProducts
-          .map((op, idx) => ({
-            slNo: idx + 1,
-            name: (op.name || '').trim(),
-            amount: parseFloat(op.amount) || 0,
-          }))
-          .filter((op) => op.name || op.amount > 0),
+        otherProducts: sanitizedOtherProducts,
         otherProductsTotal: otherProductsVal,
         makingCharges: makingChargesVal,
         hallmarkAmount: hallmarkVal,

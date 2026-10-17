@@ -37,6 +37,23 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   const buyer = invoice.buyer || {};
   const items = invoice.items || [];
 
+  let hallmarkAmount = Number(invoice.hallmarkAmount) || 0;
+  let otherProductsList = (invoice.otherProducts || []).filter(op => (op.name && op.name.trim()) || Number(op.amount) > 0);
+
+  // Fallback to extract from metadata if older backend omitted hallmarkAmount or otherProducts
+  if (hallmarkAmount === 0 && otherProductsList.length === 0 && invoice.otherReferences && invoice.otherReferences.includes('[META:')) {
+    try {
+      const metaStr = invoice.otherReferences.match(/\[META:(.*?)\]/)?.[1];
+      if (metaStr) {
+        const parsed = JSON.parse(metaStr);
+        if (parsed.hm) hallmarkAmount = Number(parsed.hm);
+        if (parsed.ops && Array.isArray(parsed.ops)) otherProductsList = parsed.ops;
+      }
+    } catch (e) {}
+  }
+
+  const otherProductsTotal = Number(invoice.otherProductsTotal) || otherProductsList.reduce((sum, op) => sum + (Number(op.amount) || 0), 0);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -62,8 +79,11 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
 
-    // Option 1: Direct native server PDF download (no blob format)
-    if (invoice?._id) {
+    const hasSpecialCharges = hallmarkAmount > 0 || otherProductsList.length > 0;
+
+    // Direct native server PDF download only if no hallmark/other products were added
+    // When hallmark or other products are present, use client-side capture to guarantee they appear in the PDF
+    if (!hasSpecialCharges && invoice?._id) {
       try {
         await api.downloadInvoicePDF(invoice._id, invoice.invoiceNumber);
         setIsDownloading(false);
@@ -158,9 +178,6 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
 
   const totalQuantity = items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
   const makingCharges = Number(invoice.makingCharges) || 0;
-  const hallmarkAmount = Number(invoice.hallmarkAmount) || 0;
-  const otherProductsList = (invoice.otherProducts || []).filter(op => (op.name && op.name.trim()) || Number(op.amount) > 0);
-  const otherProductsTotal = Number(invoice.otherProductsTotal) || otherProductsList.reduce((sum, op) => sum + (Number(op.amount) || 0), 0);
 
   const extraRowsCount = otherProductsList.length + (hallmarkAmount > 0 ? 1 : 0);
   // Adjusted spacer to ensure bottom box never overflows or clips A4 page
@@ -360,7 +377,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                           </td>
                           <td style={{ borderBottom: '1px solid #000', padding: '3px 5px', fontSize: '8.5pt' }}>
                             <div style={{ color: '#222' }}>Other Reference (S)</div>
-                            <div>{invoice.otherReferences || ''}&nbsp;</div>
+                            <div>{(invoice.otherReferences || '').replace(/\[META:.*?\]/g, '').trim() || ''}&nbsp;</div>
                           </td>
                         </tr>
                         <tr>
