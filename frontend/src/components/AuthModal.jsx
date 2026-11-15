@@ -5,7 +5,7 @@ import { Lock, Mail, User, Sparkles, AlertCircle, ArrowRight, CheckCircle2, Eye,
 export default function AuthModal({ onLoginSuccess }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('admin@gmail.com');
-  const [password, setPassword] = useState('hossain jewellers');
+  const [password, setPassword] = useState(' binda jewellers');
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,7 +29,7 @@ export default function AuthModal({ onLoginSuccess }) {
     try {
       let data;
       if (isRegister) {
-        data = await api.register(email, password, name || 'Hossain Jewellers Shopkeeper');
+        data = await api.register(email, password, name || 'Binda Jewellers Shopkeeper');
       } else {
         data = await api.login(email, password);
       }
@@ -42,8 +42,8 @@ export default function AuthModal({ onLoginSuccess }) {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('admin@gmail.com');
-    setPassword('hossain jewellers');
+    setEmail('binda@gmail.com');
+    setPassword('123456');
     setError('');
   };
 
@@ -102,7 +102,7 @@ export default function AuthModal({ onLoginSuccess }) {
             letterSpacing: '0.03em',
             marginBottom: '0.35rem',
           }}>
-            HOSSAIN JEWELLERS
+            BINDA JEWELLERS
           </h2>
           <p style={{
             fontSize: 'var(--text-sm)',
@@ -202,7 +202,7 @@ export default function AuthModal({ onLoginSuccess }) {
               <div style={{ fontSize: '0.8rem', color: '#1E293B', marginTop: '2px' }}>
                 <span>Email: <strong>admin@gmail.com</strong></span>
                 <span style={{ margin: '0 6px', color: '#CBD5E1' }}>|</span>
-                <span>Pass: <strong>hossain jewellers</strong></span>
+                <span>Pass: <strong>123456</strong></span>
               </div>
             </div>
             <button
@@ -244,7 +244,7 @@ export default function AuthModal({ onLoginSuccess }) {
                   type="text"
                   className="form-input"
                   style={{ paddingLeft: '2.5rem' }}
-                  placeholder="e.g. Hossain Jewellers"
+                  placeholder="e.g. Binda Jewellers"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />

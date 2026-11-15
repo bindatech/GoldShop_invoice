@@ -10,7 +10,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
   // Seller Details default from User profile
   const defaultSeller = {
-    shopName: user?.shopDetails?.shopName || 'HOSSAIN JEWELLERS',
+    shopName: user?.shopDetails?.shopName || 'BINDA JEWELLERS',
     address: user?.shopDetails?.address || 'Machibhanga, Kashipur, 24 Pgs (S), Kolkata- 700135',
     gstin: user?.shopDetails?.gstin || '19EEFPM2064M1Z2',
     pan: user?.shopDetails?.pan || 'EEFPM2064M',

@@ -171,7 +171,7 @@ exports.createInvoice = async (req, res) => {
 
     const shopProfile = req.user.shopDetails || {};
     const finalSeller = {
-      shopName: seller?.shopName || shopProfile.shopName || 'HOSSAIN JEWELLERS',
+      shopName: seller?.shopName || shopProfile.shopName || 'BINDA JEWELLERS',
       address:
         seller?.address ||
         shopProfile.address ||

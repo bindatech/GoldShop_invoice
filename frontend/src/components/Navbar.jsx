@@ -34,7 +34,7 @@ export default function Navbar({ user, onNewInvoice, onLogout }) {
                 color: 'var(--text-main)',
                 lineHeight: 1.2,
               }}>
-                {user?.shopDetails?.shopName || 'HOSSAIN JEWELLERS'}
+                {user?.shopDetails?.shopName || 'BINDA JEWELLERS'}
               </h1>
               <span style={{
                 background: 'rgba(184, 142, 40, 0.1)',

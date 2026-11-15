@@ -191,7 +191,7 @@ const invoiceSchema = new mongoose.Schema(
     seller: {
       shopName: {
         type: String,
-        default: 'HOSSAIN JEWELLERS',
+        default: 'BINDA JEWELLERS',
       },
       address: {
         type: String,

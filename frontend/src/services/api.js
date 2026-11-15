@@ -1,5 +1,5 @@
 const isProd = import.meta.env.PROD;
-const rawBackend = (import.meta.env.VITE_BACKEND_URL || 'https://server2.vais.co.in/goldshopbill').trim().replace(/\/+$/, '');
+const rawBackend = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
 let rawBase = import.meta.env.VITE_API_URL;
 if (isProd && (!rawBase || rawBase.includes('localhost'))) {
   rawBase = rawBackend ? `${rawBackend}/api` : '/api';

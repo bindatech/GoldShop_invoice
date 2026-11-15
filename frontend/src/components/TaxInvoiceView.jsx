@@ -24,7 +24,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
   }, []);
 
   const seller = invoice.seller || {
-    shopName: 'HOSSAIN JEWELLERS',
+    shopName: 'BINDA JEWELLERS',
     address: 'Machibhanga, Kashipur, 24 Pgs (S), Kolkata- 700135',
     gstin: '19EEFPM2064M1Z2',
     pan: 'EEFPM2064M',
@@ -330,7 +330,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
                   {/* Left Column: Seller Details */}
                   <td style={{ width: '50%', verticalAlign: 'top', borderRight: '1px solid #000', padding: '6px' }}>
                     <div style={{ fontWeight: 'bold', fontSize: '11pt', textTransform: 'uppercase' }}>
-                      {seller.shopName || 'HOSSAIN JEWELLERS'}
+                      {seller.shopName || 'BINDA JEWELLERS'}
                     </div>
                     <div style={{ fontSize: '9pt', marginTop: '2px', lineHeight: 1.25 }}>
                       {seller.address || 'Machibhanga, Kashipur, 24 Pgs (S), Kolkata- 700135'}
@@ -786,7 +786,7 @@ export default function TaxInvoiceView({ invoice, onClose, onEdit }) {
 
                     <div style={{ textAlign: 'right', marginTop: '6px' }}>
                       <div style={{ fontWeight: 'bold', fontSize: '9pt' }}>
-                        For. {seller.shopName || 'HOSSAIN JEWELLERS'}
+                        For. {seller.shopName || 'BINDA JEWELLERS'}
                       </div>
                       <div style={{ height: '16px' }}></div>
                       <div style={{ fontWeight: 'bold', fontSize: '8.5pt' }}>

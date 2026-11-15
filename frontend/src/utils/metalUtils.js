@@ -1,5 +1,5 @@
 /**
- * Utility functions for classifying items into Gold, Silver, or Other in Hossain Jewellers CRM
+ * Utility functions for classifying items into Gold, Silver, or Other in Binda Jewellers CRM
  */
 
 /**

@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
     shopDetails: {
       shopName: {
         type: String,
-        default: 'HOSSAIN JEWELLERS',
+        default: 'BINDA JEWELLERS',
       },
       address: {
         type: String,

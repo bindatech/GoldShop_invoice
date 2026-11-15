@@ -148,7 +148,7 @@ export default function App() {
         gap: '0.75rem',
       }}>
         <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--gold-primary)' }} />
-        <span>Loading Hossain Jewellers CRM...</span>
+        <span>Loading Binda Jewellers CRM...</span>
       </div>
     );
   }

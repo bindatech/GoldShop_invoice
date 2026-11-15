@@ -70,7 +70,7 @@ function buildInvoicePDF(invoice, stream) {
     bufferPages: true,
     info: {
       Title: `Invoice_${invoice.invoiceNumber || 'TAX'}`,
-      Author: invoice.seller?.shopName || 'HOSSAIN JEWELLERS',
+      Author: invoice.seller?.shopName || 'BINDA JEWELLERS',
       Subject: 'Official Tax Invoice',
     },
   });
@@ -100,7 +100,7 @@ function buildInvoicePDF(invoice, stream) {
   const rightX = startX + contentWidth; // 575
 
   const seller = invoice.seller || {
-    shopName: 'HOSSAIN JEWELLERS',
+    shopName: 'BINDA JEWELLERS',
     address: 'Machibhanga, Kashipur, 24 Pgs (S), Kolkata- 700135',
     gstin: '19EEFPM2064M1Z2',
     pan: 'EEFPM2064M',
@@ -189,7 +189,7 @@ function buildInvoicePDF(invoice, stream) {
 
   // --- Left Column: Seller info ---
   doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#000000');
-  doc.text(seller.shopName || 'HOSSAIN JEWELLERS', startX + 7, currentY + 7);
+  doc.text(seller.shopName || 'BINDA JEWELLERS', startX + 7, currentY + 7);
 
   doc.font('Helvetica').fontSize(7.5).fillColor('#222222');
   doc.text(seller.address || '', startX + 7, currentY + 22, { width: col1Width - 14, lineGap: 1.5 });
@@ -598,7 +598,7 @@ function buildInvoicePDF(invoice, stream) {
   doc.text(`IFSC Code   :  ${seller.ifscCode || 'SBIN0006208'}`, startX + 302, currentY + 40);
 
   // Signatory: Clear 22pt gap between "For. Shop" and "Authorised Signatory"
-  doc.font('Helvetica-Bold').fontSize(8.5).text(`For. ${seller.shopName || 'HOSSAIN JEWELLERS'}`, startX + 302, currentY + 54, {
+  doc.font('Helvetica-Bold').fontSize(8.5).text(`For. ${seller.shopName || 'BINDA JEWELLERS'}`, startX + 302, currentY + 54, {
     width: contentWidth - 308,
     align: 'right',
   });
