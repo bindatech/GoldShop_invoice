@@ -1,12 +1,13 @@
-const isProd = import.meta.env.PROD;
-const rawBackend = (import.meta.env.VITE_API_URL || 'https://gold-shop-invoice-irin.vercel.app/api').trim().replace(/\/+$/, '');
-let rawBase = import.meta.env.VITE_API_URL;
-if (isProd && (!rawBase || rawBase.includes('localhost'))) {
-  rawBase = rawBackend ? `${rawBackend}/api` : '/api';
-} else if (!rawBase) {
-  rawBase = rawBackend ? `${rawBackend}/api` : '/api';
-}
-const API_BASE = rawBase.replace(/([^:])\/{2,}/g, '$1/').replace(/\/+$/, '');
+const getApiBase = () => {
+  let url = (import.meta.env.VITE_API_URL || 'https://gold-shop-invoice-irin.vercel.app/api').trim().replace(/\/+$/, '');
+  // Ensure the base URL cleanly ends with /api without duplicating
+  if (!url.endsWith('/api')) {
+    url += '/api';
+  }
+  return url.replace(/([^:])\/{2,}/g, '$1/');
+};
+
+const API_BASE = getApiBase();
 
 const getHeaders = () => {
   const token = localStorage.getItem('gold_crm_token');

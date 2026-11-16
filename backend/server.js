@@ -10,8 +10,28 @@ const invoiceRoutes = require('./routes/invoiceRoutes');
 
 const app = express();
 
+// Enable CORS first so all requests (including preflight OPTIONS) get proper headers
+const corsOptions = {
+  origin: true, // Echoes the request origin, allowing requests from any frontend URL
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Content-Disposition', 'Content-Type'],
+};
+app.use(cors(corsOptions));
+
 // Connect to MongoDB
 connectDB();
+
+// Ensure DB is connected for serverless invocations
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('Database connection middleware error:', err);
+  }
+  next();
+});
 
 // Middleware
 // Normalize incoming request URLs (collapse duplicate slashes, e.g. //api -> /api)
@@ -23,13 +43,6 @@ app.use((req, res, next) => {
 });
 
 app.use(morgan('dev'));
-app.use(
-  cors({
-    origin: true, // Allow frontend origin
-    credentials: true,
-    exposedHeaders: ['Content-Disposition', 'Content-Type'],
-  })
-);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -65,8 +78,10 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5005;
 
-app.listen(PORT, () => {
-  console.log(`Gold Billing CRM Server is running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Gold Billing CRM Server is running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
