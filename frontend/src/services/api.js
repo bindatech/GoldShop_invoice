@@ -89,6 +89,14 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Live Metal Rates
+  async getMetalRates() {
+    const res = await apiFetch(`${API_BASE}/rates/metals`, {
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
   // Invoices
   async getInvoices({ search = '', date = '', startDate = '', endDate = '', page = 1, limit = 20 } = {}) {
     const params = new URLSearchParams();

@@ -3,7 +3,29 @@ import { api } from '../services/api';
 import { useDebounce } from '../hooks/useDebounce';
 import { convertNumberToWords } from '../utils/numberToWords';
 import { isGoldItem, isSilverItem } from '../utils/metalUtils';
-import { X, Plus, Trash2, Calculator, UserCheck, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  X,
+  Plus,
+  Trash2,
+  Calculator,
+  UserCheck,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Edit3,
+  Check,
+  TrendingUp,
+  Sparkles,
+  CheckCheck,
+  RotateCcw,
+} from 'lucide-react';
+import {
+  getStoredMetalRates,
+  fetchLiveMetalRates,
+  saveCustomMetalRates,
+  getRateForMetal,
+} from '../services/metalPriceService';
 
 export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoice, user }) {
   if (!isOpen) return null;
@@ -11,12 +33,12 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
   // Seller Details default from User profile
   const defaultSeller = {
     shopName: user?.shopDetails?.shopName || 'BINDA JEWELLERS',
-    address: user?.shopDetails?.address || 'Machibhanga, Kashipur, 24 Pgs (S), Kolkata- 700135',
+    address: user?.shopDetails?.address || 'Maheshganj, Nabadwip, Nadia, Pin- 741315',
     gstin: user?.shopDetails?.gstin || '19EEFPM2064M1Z2',
     pan: user?.shopDetails?.pan || 'EEFPM2064M',
     state: user?.shopDetails?.state || 'West Bengal',
-    bankName: user?.shopDetails?.bankName || 'Branch Lauhati',
-    accountNo: user?.shopDetails?.accountNo || '36540395042',
+    bankName: user?.shopDetails?.bankName || 'Branch Nabadwip',
+    accountNo: user?.shopDetails?.accountNo || '36540395000',
     ifscCode: user?.shopDetails?.ifscCode || 'SBIN0006208',
   };
 
@@ -52,6 +74,66 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
+  // Metal Live & Shop Board Rates (Kolkata Market)
+  const [metalRates, setMetalRates] = useState(getStoredMetalRates());
+  const [isFetchingRates, setIsFetchingRates] = useState(false);
+  const [isEditingRates, setIsEditingRates] = useState(false);
+  const [ratesSuccessMsg, setRatesSuccessMsg] = useState('');
+  const [customRateInputs, setCustomRateInputs] = useState({
+    gold22k: metalRates.gold22k || 13610,
+    gold24k: metalRates.gold24k || 14315,
+    silver: metalRates.silver || 191,
+  });
+
+  // Listen for metal rate updates & fetch on modal open
+  useEffect(() => {
+    const handleRatesUpdate = (e) => {
+      if (e.detail) {
+        setMetalRates(e.detail);
+        setCustomRateInputs({
+          gold22k: e.detail.gold22k || 13610,
+          gold24k: e.detail.gold24k || 14315,
+          silver: e.detail.silver || 191,
+        });
+      }
+    };
+    window.addEventListener('metal-rates-updated', handleRatesUpdate);
+
+    if (isOpen) {
+      fetchLiveMetalRates()
+        .then((latest) => {
+          if (latest) {
+            setMetalRates(latest);
+            setCustomRateInputs({
+              gold22k: latest.gold22k || 13610,
+              gold24k: latest.gold24k || 14315,
+              silver: latest.silver || 191,
+            });
+
+            // Automatically update today's live rate in the initial item row for new invoices
+            if (!editingInvoice) {
+              setItems((prevItems) => {
+                if (prevItems.length === 1 && (!prevItems[0].quantity || prevItems[0].quantity === '')) {
+                  return [
+                    {
+                      ...prevItems[0],
+                      rate: latest.gold22k || 13610,
+                    },
+                  ];
+                }
+                return prevItems;
+              });
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      window.removeEventListener('metal-rates-updated', handleRatesUpdate);
+    };
+  }, [isOpen]);
+
   // Items
   const [items, setItems] = useState([
     {
@@ -60,7 +142,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
       metal: 'gold',
       hsnSac: '7113',
       quantity: '',
-      rate: '',
+      rate: metalRates.gold22k || 13610,
       per: 'gms',
       amount: 0,
     },
@@ -177,7 +259,7 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           metal: 'gold',
           hsnSac: '7113',
           quantity: '',
-          rate: '',
+          rate: metalRates.gold22k || 13610,
           per: 'gms',
           amount: 0,
         },
@@ -232,7 +314,24 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
     const updated = [...items];
     updated[index][field] = value;
 
-    if (field === 'quantity' || field === 'rate') {
+    if (field === 'description') {
+      const isSilv = isSilverItem({ description: value });
+      const isGld = isGoldItem({ description: value });
+      if (isSilv) {
+        updated[index].metal = 'silver';
+        if (!updated[index].rate || updated[index].rate === metalRates.gold22k || updated[index].rate === metalRates.gold24k) {
+          updated[index].rate = metalRates.silver || 191;
+        }
+      } else if (isGld) {
+        updated[index].metal = 'gold';
+        const expectedRate = getRateForMetal('gold', value, metalRates);
+        if (!updated[index].rate || updated[index].rate === metalRates.silver) {
+          updated[index].rate = expectedRate;
+        }
+      }
+    }
+
+    if (field === 'quantity' || field === 'rate' || field === 'description') {
       const q = parseFloat(field === 'quantity' ? value : updated[index].quantity) || 0;
       const r = parseFloat(field === 'rate' ? value : updated[index].rate) || 0;
       updated[index].amount = Math.round(q * r * 100) / 100;
@@ -242,6 +341,10 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
   const addItemRow = (metalType = 'gold') => {
     const isSilver = metalType === 'silver';
+    const rateToUse = isSilver
+      ? (metalRates.silver || 191)
+      : (metalRates.gold22k || 13610);
+
     setItems([
       ...items,
       {
@@ -250,11 +353,92 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
         metal: isSilver ? 'silver' : 'gold',
         hsnSac: '7113',
         quantity: '',
-        rate: '',
+        rate: rateToUse,
         per: 'gms',
         amount: 0,
       },
     ]);
+  };
+
+  // Apply current metal rates across all existing rows
+  const applyRatesToAllItems = () => {
+    const updated = items.map((item) => {
+      const isSilv = item.metal === 'silver' || isSilverItem(item);
+      const targetRate = isSilv
+        ? (metalRates.silver || 191)
+        : getRateForMetal(item.metal, item.description, metalRates);
+      const q = parseFloat(item.quantity) || 0;
+      return {
+        ...item,
+        rate: targetRate,
+        amount: Math.round(q * targetRate * 100) / 100,
+      };
+    });
+    setItems(updated);
+    setRatesSuccessMsg('Rates applied to all items!');
+    setTimeout(() => setRatesSuccessMsg(''), 2500);
+  };
+
+  const handleRefreshRates = async () => {
+    setIsFetchingRates(true);
+    setRatesSuccessMsg('');
+    try {
+      const latest = await fetchLiveMetalRates();
+      if (latest) {
+        setMetalRates(latest);
+        setCustomRateInputs({
+          gold22k: latest.gold22k || 13610,
+          gold24k: latest.gold24k || 14315,
+          silver: latest.silver || 191,
+        });
+        setRatesSuccessMsg('Anandabazar Kolkata benchmark rates updated!');
+        setTimeout(() => setRatesSuccessMsg(''), 2500);
+      }
+    } catch (e) {
+      console.warn('Failed to refresh rates:', e);
+    } finally {
+      setIsFetchingRates(false);
+    }
+  };
+
+  const handleSaveCustomRates = () => {
+    const g22 = parseFloat(customRateInputs.gold22k) || metalRates.gold22k;
+    const g24 = parseFloat(customRateInputs.gold24k) || metalRates.gold24k;
+    const silv = parseFloat(customRateInputs.silver) || metalRates.silver;
+
+    const saved = saveCustomMetalRates({
+      gold22k: g22,
+      gold24k: g24,
+      silver: silv,
+    });
+    setMetalRates(saved);
+    setIsEditingRates(false);
+    setRatesSuccessMsg('Today’s shop rates saved!');
+    setTimeout(() => setRatesSuccessMsg(''), 2500);
+  };
+
+  const handleResetToLive = async () => {
+    setIsFetchingRates(true);
+    setRatesSuccessMsg('');
+    try {
+      localStorage.removeItem('gold_crm_metal_rates_kolkata_anandabazar_v5');
+      const latest = await fetchLiveMetalRates();
+      if (latest) {
+        setMetalRates(latest);
+        setCustomRateInputs({
+          gold22k: latest.gold22k || 13610,
+          gold24k: latest.gold24k || 14315,
+          silver: latest.silver || 191,
+        });
+        setIsEditingRates(false);
+        setRatesSuccessMsg('Reset to Anandabazar Kolkata benchmark!');
+        setTimeout(() => setRatesSuccessMsg(''), 2500);
+      }
+    } catch (e) {
+      console.warn('Failed to reset to live rates:', e);
+    } finally {
+      setIsFetchingRates(false);
+    }
   };
 
   const removeItemRow = (index) => {
@@ -721,6 +905,412 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
               border: '1px solid var(--border-color)',
               marginBottom: '1.25rem',
             }}>
+              {/* Professional Bullion Market Rates & Shop Board Rate Widget */}
+              <div style={{
+                background: '#FFFFFF',
+                border: '1.5px solid #E6DEC9',
+                borderRadius: '12px',
+                boxShadow: '0 4px 18px rgba(184, 142, 40, 0.08)',
+                overflow: 'hidden',
+                marginBottom: '1.25rem',
+              }}>
+                {/* Top Gold Accent Bar */}
+                <div style={{
+                  height: '3px',
+                  background: 'linear-gradient(90deg, #D4AF37 0%, #B88E28 50%, #966F17 100%)',
+                  width: '100%',
+                }} />
+
+                <div style={{ padding: '0.85rem 1.15rem' }}>
+                  {/* Header Row: Title & Action Controls */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                    paddingBottom: '0.75rem',
+                    borderBottom: '1px solid #ECE7DE',
+                    marginBottom: '0.85rem',
+                  }}>
+                    {/* Title & Live Status */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        background: 'rgba(184, 142, 40, 0.1)',
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '999px',
+                        border: '1px solid rgba(184, 142, 40, 0.25)',
+                      }}>
+                        <Sparkles size={14} color="#B88E28" />
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 750,
+                          color: '#8A6413',
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          fontFamily: 'var(--font-heading)',
+                        }}>
+                          Kolkata Bullion Rates
+                        </span>
+                      </div>
+
+                      {/* Live / Custom Indicator */}
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        color: metalRates.isCustom ? '#92400E' : '#047857',
+                      }}>
+                        <span style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          background: metalRates.isCustom ? '#D97706' : '#10B981',
+                          boxShadow: metalRates.isCustom ? '0 0 6px #F59E0B' : '0 0 8px #10B981',
+                          display: 'inline-block',
+                        }} />
+                        <span>{metalRates.isCustom ? 'Shop Custom Board Rate' : 'Live Auto-Sync (Today)'}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleRefreshRates}
+                        disabled={isFetchingRates}
+                        className="btn-outline"
+                        style={{
+                          padding: '0.32rem 0.65rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          background: '#FAF8F5',
+                          borderColor: '#E2DBD0',
+                          color: 'var(--text-main)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer',
+                        }}
+                        title="Fetch latest live market rates"
+                      >
+                        <RefreshCw size={12} className={isFetchingRates ? 'spin-anim' : ''} />
+                        <span>{isFetchingRates ? 'Syncing...' : 'Sync Live'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingRates(!isEditingRates)}
+                        className="btn-outline"
+                        style={{
+                          padding: '0.32rem 0.65rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          background: isEditingRates ? 'rgba(184, 142, 40, 0.12)' : '#FAF8F5',
+                          borderColor: isEditingRates ? 'var(--gold-primary)' : '#E2DBD0',
+                          color: isEditingRates ? 'var(--gold-dark)' : 'var(--text-main)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer',
+                        }}
+                        title="Set or tweak today's rate manually"
+                      >
+                        <Edit3 size={12} />
+                        <span>{isEditingRates ? 'Close Editor' : 'Set Shop Rate'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={applyRatesToAllItems}
+                        style={{
+                          padding: '0.32rem 0.75rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 650,
+                          borderRadius: '6px',
+                          background: 'linear-gradient(135deg, #047857 0%, #065F46 100%)',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(4, 120, 87, 0.25)',
+                        }}
+                        title="Apply current rates to all items in table"
+                      >
+                        <CheckCheck size={13} />
+                        <span>Apply to Items</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3 Price Cards Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '0.75rem',
+                    marginBottom: '0.5rem',
+                  }}>
+                    {/* Card 1: Gold 22K (916) Hallmark */}
+                    <div style={{
+                      background: 'linear-gradient(180deg, #FFFDF8 0%, #FAF5EA 100%)',
+                      border: '1.5px solid #DFC068',
+                      borderRadius: '10px',
+                      padding: '0.75rem 0.9rem',
+                      boxShadow: '0 2px 8px rgba(184, 142, 40, 0.08)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.95rem' }}>🪙</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8A6413', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Gold 22K (916)
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          background: '#F5ECCE',
+                          color: '#785A11',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          letterSpacing: '0.04em',
+                        }}>
+                          HALLMARK
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#047857', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                          ₹{Number(metalRates.gold22k || 13610).toLocaleString('en-IN')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                          / gram
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#785A11', marginTop: '0.25rem', opacity: 0.9 }}>
+                        Standard Jewellery • Auto-applied
+                      </div>
+                    </div>
+
+                    {/* Card 2: Gold 24K Pure */}
+                    <div style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E5DFD4',
+                      borderRadius: '10px',
+                      padding: '0.75rem 0.9rem',
+                      boxShadow: '0 1px 4px rgba(28, 25, 23, 0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.95rem' }}>✨</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Gold 24K Pure
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          background: '#F3EFE7',
+                          color: '#57534E',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                        }}>
+                          99.9% PURE
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                          ₹{Number(metalRates.gold24k || 14315).toLocaleString('en-IN')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                          / gram
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Bullion Bars & 24K Coins
+                      </div>
+                    </div>
+
+                    {/* Card 3: Fine Silver */}
+                    <div style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E5DFD4',
+                      borderRadius: '10px',
+                      padding: '0.75rem 0.9rem',
+                      boxShadow: '0 1px 4px rgba(28, 25, 23, 0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span style={{ fontSize: '0.95rem' }}>⚪</span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Fine Silver
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          background: '#F1F5F9',
+                          color: '#475569',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                        }}>
+                          92.5% / 999
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
+                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                          ₹{Number(metalRates.silver || 191).toLocaleString('en-IN')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                          / gram
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Payal, Ornaments & Utensils
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inline Board Rate Editor Drawer */}
+                  {isEditingRates && (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      padding: '0.85rem 1rem',
+                      background: '#FAF7F0',
+                      borderRadius: '8px',
+                      border: '1px dashed #DFC068',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8A6413', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          ✏️ Set Today's Shop Board Rate
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          These custom rates will apply to today's invoices
+                        </span>
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                        gap: '0.75rem',
+                        alignItems: 'end',
+                      }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                            Gold 22K (916) (₹/gm)
+                          </label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: 650 }}
+                            value={customRateInputs.gold22k}
+                            onChange={(e) => setCustomRateInputs({ ...customRateInputs, gold22k: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                            Gold 24K Pure (₹/gm)
+                          </label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: 650 }}
+                            value={customRateInputs.gold24k}
+                            onChange={(e) => setCustomRateInputs({ ...customRateInputs, gold24k: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                            Silver (₹/gm)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            className="form-input"
+                            style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', fontWeight: 650 }}
+                            value={customRateInputs.silver}
+                            onChange={(e) => setCustomRateInputs({ ...customRateInputs, silver: e.target.value })}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            onClick={handleSaveCustomRates}
+                            className="btn-gold"
+                            style={{
+                              padding: '0.45rem 0.85rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              flex: 1,
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Check size={14} />
+                            <span>Save Rate</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleResetToLive}
+                            className="btn-outline"
+                            style={{
+                              padding: '0.45rem 0.65rem',
+                              fontSize: '0.75rem',
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              background: '#FFFFFF',
+                            }}
+                            title="Reset back to live automated market feed"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Live</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {ratesSuccessMsg && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.35rem 0.65rem',
+                      background: '#ECFDF5',
+                      border: '1px solid #A7F3D0',
+                      borderRadius: '6px',
+                      fontSize: '0.72rem',
+                      color: '#065F46',
+                      fontWeight: 650,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                    }}>
+                      <Check size={13} />
+                      <span>{ratesSuccessMsg}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 650, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-heading)' }}>
                   Description of Goods & Quantities (Gold / Silver)

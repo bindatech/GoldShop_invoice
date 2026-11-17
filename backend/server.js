@@ -7,6 +7,7 @@ const connectDB = require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
+const rateRoutes = require('./routes/rateRoutes');
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.get('/', (req, res) => {
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/rates', rateRoutes);
 
 // 404 handler
 app.use((req, res) => {

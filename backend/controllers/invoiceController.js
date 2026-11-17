@@ -274,18 +274,22 @@ exports.getInvoices = async (req, res) => {
       query.invoiceDate = {};
       if (startDate) {
         const sDate = new Date(startDate);
-        sDate.setHours(0, 0, 0, 0);
+        if (typeof startDate === 'string' && startDate.length <= 10) {
+          sDate.setHours(0, 0, 0, 0);
+        }
         query.invoiceDate.$gte = sDate;
       }
       if (endDate) {
         const eDate = new Date(endDate);
-        eDate.setHours(23, 59, 59, 999);
+        if (typeof endDate === 'string' && endDate.length <= 10) {
+          eDate.setHours(23, 59, 59, 999);
+        }
         query.invoiceDate.$lte = eDate;
       }
     }
 
     const pageNum = parseInt(page, 10) || 1;
-    const limitNum = parseInt(limit, 10) || 20;
+    const limitNum = parseInt(limit, 10) || 100;
     const skip = (pageNum - 1) * limitNum;
 
     const [invoices, total] = await Promise.all([

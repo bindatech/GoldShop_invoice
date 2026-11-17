@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from './services/api';
 import { useDebounce } from './hooks/useDebounce';
+import { getDateRangeForPreset } from './utils/dateFilterUtils';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import DashboardStats from './components/DashboardStats';
@@ -17,6 +18,11 @@ export default function App() {
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Date-wise performance metrics filter state
+  const [datePreset, setDatePreset] = useState('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
 
   // Debounced search term (350ms)
   const debouncedSearch = useDebounce(searchTerm, 350);
@@ -58,13 +64,17 @@ export default function App() {
     }
   }, []);
 
-  // Fetch invoices with debounced customer search
+  // Fetch invoices with debounced customer search & date filters
   const fetchInvoices = useCallback(async () => {
     if (!user) return;
     setLoadingInvoices(true);
     try {
+      const range = getDateRangeForPreset(datePreset, customStart, customEnd);
       const data = await api.getInvoices({
         search: debouncedSearch,
+        startDate: range.start ? range.start.toISOString() : '',
+        endDate: range.end ? range.end.toISOString() : '',
+        limit: 200,
       });
       setInvoices(data.invoices || []);
     } catch (err) {
@@ -72,13 +82,26 @@ export default function App() {
     } finally {
       setLoadingInvoices(false);
     }
-  }, [user, debouncedSearch]);
+  }, [user, debouncedSearch, datePreset, customStart, customEnd]);
 
   useEffect(() => {
     if (user) {
       fetchInvoices();
     }
   }, [user, fetchInvoices]);
+
+  // Date Filter Handlers
+  const handlePresetChange = (presetId, newStart, newEnd) => {
+    setDatePreset(presetId);
+    if (newStart !== undefined) setCustomStart(newStart);
+    if (newEnd !== undefined) setCustomEnd(newEnd);
+  };
+
+  const handleCustomDateChange = ({ start, end }) => {
+    setDatePreset('custom');
+    setCustomStart(start);
+    setCustomEnd(end);
+  };
 
   // Handlers
   const handleLoginSuccess = (userData) => {
@@ -193,8 +216,16 @@ export default function App() {
 
       {/* Main Container */}
       <main className="crm-main-container">
-        {/* CRM Overview Stats */}
-        <DashboardStats invoices={invoices} />
+        {/* CRM Overview Stats & Date Filter */}
+        <DashboardStats
+          invoices={invoices}
+          datePreset={datePreset}
+          onPresetChange={handlePresetChange}
+          customStart={customStart}
+          customEnd={customEnd}
+          onCustomDateChange={handleCustomDateChange}
+          loading={loadingInvoices}
+        />
 
         {/* Invoice Management Table & Debounced Search */}
         <InvoiceList
@@ -207,6 +238,9 @@ export default function App() {
           onDeleteInvoice={handleDeleteInvoice}
           onCreateNew={handleOpenCreate}
           isDebouncing={isDebouncing}
+          datePreset={datePreset}
+          dateFilterSummary={getDateRangeForPreset(datePreset, customStart, customEnd).summary}
+          onResetDateFilter={() => handlePresetChange('all')}
         />
       </main>
 

@@ -13,6 +13,9 @@ export default function InvoiceList({
   onDeleteInvoice,
   onCreateNew,
   isDebouncing,
+  datePreset = 'all',
+  dateFilterSummary = '',
+  onResetDateFilter,
 }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
@@ -73,6 +76,41 @@ export default function InvoiceList({
             }}>
               {invoices.length} {invoices.length === 1 ? 'record' : 'records'}
             </span>
+            {datePreset && datePreset !== 'all' && (
+              <span style={{
+                fontSize: 'var(--text-xs)',
+                background: 'rgba(184, 142, 40, 0.12)',
+                color: '#9A7218',
+                border: '1px solid rgba(184, 142, 40, 0.3)',
+                padding: '0.15rem 0.6rem',
+                borderRadius: '999px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+              }}>
+                <span>Filtered: {dateFilterSummary}</span>
+                {onResetDateFilter && (
+                  <button
+                    type="button"
+                    onClick={onResetDateFilter}
+                    title="Clear filter and view all records"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#9A7218',
+                      padding: 0,
+                      fontSize: '0.8rem',
+                      fontWeight: 750,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            )}
           </h2>
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
             Instant debounced search by customer name
@@ -164,12 +202,21 @@ export default function InvoiceList({
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
                       {searchTerm
                         ? 'Try clearing your customer name search query.'
+                        : datePreset !== 'all'
+                        ? `No invoices recorded for ${dateFilterSummary}.`
                         : 'Get started by creating your first gold purchase invoice.'}
                     </p>
-                    <button onClick={onCreateNew} className="btn-gold" style={{ fontSize: '0.875rem' }}>
-                      <Plus size={16} />
-                      <span>Create New Invoice</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {datePreset !== 'all' && onResetDateFilter && (
+                        <button onClick={onResetDateFilter} className="btn-outline" style={{ fontSize: '0.875rem' }}>
+                          View All Time Records
+                        </button>
+                      )}
+                      <button onClick={onCreateNew} className="btn-gold" style={{ fontSize: '0.875rem' }}>
+                        <Plus size={16} />
+                        <span>Create New Invoice</span>
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -216,9 +263,21 @@ export default function InvoiceList({
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <span style={{ fontWeight: 650, color: 'var(--text-main)', fontSize: '0.88rem' }}>
-                          {totalGrams.toFixed(3)} gms
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 650, color: 'var(--text-main)', fontSize: '0.88rem' }}>
+                            {totalGrams.toFixed(3)} gms
+                          </span>
+                          {/* <span style={{
+                            fontSize: '0.7rem',
+                            color: 'var(--gold-primary)',
+                            background: 'rgba(184, 142, 40, 0.08)',
+                            padding: '0.05rem 0.35rem',
+                            borderRadius: '4px',
+                            fontWeight: 650,
+                          }} title="Weight in Kolkata standard Vori (1 vori = 11.664g)">
+                            {(totalGrams / 11.664).toFixed(3)}v
+                          </span> */}
+                        </div>
                         {silverGrams > 0 && goldGrams > 0 ? (
                           <div style={{ display: 'flex', gap: '0.4rem', fontSize: '0.7rem', flexWrap: 'wrap' }}>
                             <span style={{ color: '#047857', fontWeight: 600 }}>Gold: {goldGrams.toFixed(3)}g</span>
@@ -226,7 +285,7 @@ export default function InvoiceList({
                           </div>
                         ) : silverGrams > 0 ? (
                           <span style={{ color: '#475569', fontSize: '0.72rem', fontWeight: 600 }}>
-                            Silver: {silverGrams.toFixed(3)}g
+                            Silver: {silverGrams.toFixed(3)}g ({(silverGrams / 11.664).toFixed(3)} vori)
                           </span>
                         ) : goldGrams > 0 ? (
                           <span style={{ color: '#047857', fontSize: '0.72rem', fontWeight: 500 }}>

@@ -100,3 +100,37 @@ export function getItemMetalType(item) {
   if (isGoldItem(item)) return 'gold';
   return 'other';
 }
+
+/**
+ * Standard Bengal / Kolkata Jewellery Metric:
+ * 1 Vori (Bhori) = 11.664 grams
+ */
+export const GRAMS_PER_VORI = 11.664;
+
+/**
+ * Convert weight in grams to Kolkata standard Vori (Bhori)
+ * @param {number} grams
+ * @returns {number}
+ */
+export function gramsToVori(grams) {
+  const g = Number(grams) || 0;
+  if (g <= 0) return 0;
+  return g / GRAMS_PER_VORI;
+}
+
+/**
+ * Format weight in both Grams and Vori for clear Kolkata jeweller display
+ * @param {number} grams
+ * @returns {{ grams: number, vori: number, gramsStr: string, voriStr: string, combinedStr: string }}
+ */
+export function formatMetalWeight(grams) {
+  const g = Number(grams) || 0;
+  const vori = gramsToVori(g);
+  return {
+    grams: g,
+    vori: vori,
+    gramsStr: `${g.toFixed(3)} gms`,
+    voriStr: `${vori.toFixed(3)} vori`,
+    combinedStr: `${g.toFixed(3)} gms (${vori.toFixed(3)} vori)`,
+  };
+}
