@@ -76,6 +76,8 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
   // Metal Live & Shop Board Rates (Kolkata Market)
   const [metalRates, setMetalRates] = useState(getStoredMetalRates());
+  const [selectedRateType, setSelectedRateType] = useState('gold22k');
+  const [activeRowIndex, setActiveRowIndex] = useState(0);
   const [isFetchingRates, setIsFetchingRates] = useState(false);
   const [isEditingRates, setIsEditingRates] = useState(false);
   const [ratesSuccessMsg, setRatesSuccessMsg] = useState('');
@@ -138,7 +140,8 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
   const [items, setItems] = useState([
     {
       slNo: 1,
-      description: 'GOLD ORNAMENTS (916%)',
+      description: '',
+      purityType: 'gold22k',
       metal: 'gold',
       hsnSac: '7113',
       quantity: '',
@@ -210,16 +213,21 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
       if (editingInvoice.items && editingInvoice.items.length > 0) {
         setItems(
-          editingInvoice.items.map((it, idx) => ({
-            slNo: it.slNo || idx + 1,
-            description: it.description || 'GOLD ORNAMENTS (916%)',
-            metal: it.metal || (isSilverItem(it) ? 'silver' : (isGoldItem(it) ? 'gold' : 'other')),
-            hsnSac: it.hsnSac || '7113',
-            quantity: it.quantity,
-            rate: it.rate,
-            per: it.per || 'gms',
-            amount: it.amount || 0,
-          }))
+          editingInvoice.items.map((it, idx) => {
+            const isSilv = isSilverItem(it);
+            const is24 = (it.description || '').toLowerCase().includes('24k') || it.rate >= 14000;
+            return {
+              slNo: it.slNo || idx + 1,
+              description: it.description || '',
+              purityType: isSilv ? 'silver' : is24 ? 'gold24k' : 'gold22k',
+              metal: it.metal || (isSilv ? 'silver' : 'gold'),
+              hsnSac: it.hsnSac || '7113',
+              quantity: it.quantity,
+              rate: it.rate,
+              per: it.per || 'gms',
+              amount: it.amount || 0,
+            };
+          })
         );
       }
       if (restoredOtherProducts && Array.isArray(restoredOtherProducts) && restoredOtherProducts.length > 0) {
@@ -255,7 +263,8 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
       setItems([
         {
           slNo: 1,
-          description: 'GOLD ORNAMENTS (916%)',
+          description: '',
+          purityType: 'gold22k',
           metal: 'gold',
           hsnSac: '7113',
           quantity: '',
@@ -316,17 +325,11 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
 
     if (field === 'description') {
       const isSilv = isSilverItem({ description: value });
-      const isGld = isGoldItem({ description: value });
-      if (isSilv) {
+      if (isSilv && updated[index].purityType !== 'silver') {
         updated[index].metal = 'silver';
+        updated[index].purityType = 'silver';
         if (!updated[index].rate || updated[index].rate === metalRates.gold22k || updated[index].rate === metalRates.gold24k) {
           updated[index].rate = metalRates.silver || 191;
-        }
-      } else if (isGld) {
-        updated[index].metal = 'gold';
-        const expectedRate = getRateForMetal('gold', value, metalRates);
-        if (!updated[index].rate || updated[index].rate === metalRates.silver) {
-          updated[index].rate = expectedRate;
         }
       }
     }
@@ -339,43 +342,86 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
     setItems(updated);
   };
 
-  const addItemRow = (metalType = 'gold') => {
-    const isSilver = metalType === 'silver';
-    const rateToUse = isSilver
-      ? (metalRates.silver || 191)
-      : (metalRates.gold22k || 13610);
+  // Change purity on an item row — automatically sets today's rate for that purity
+  const handlePurityChange = (index, newPurity) => {
+    const updated = [...items];
+    if (!updated[index]) return;
 
-    setItems([
-      ...items,
-      {
-        slNo: items.length + 1,
-        description: isSilver ? 'SILVER ORNAMENTS (92.5%)' : 'GOLD ORNAMENTS (916%)',
-        metal: isSilver ? 'silver' : 'gold',
-        hsnSac: '7113',
-        quantity: '',
-        rate: rateToUse,
-        per: 'gms',
-        amount: 0,
-      },
-    ]);
+    let targetRate = metalRates.gold22k || 13610;
+    let targetMetal = 'gold';
+
+    if (newPurity === 'gold24k') {
+      targetRate = metalRates.gold24k || 14315;
+      targetMetal = 'gold';
+    } else if (newPurity === 'silver') {
+      targetRate = metalRates.silver || 191;
+      targetMetal = 'silver';
+    }
+
+    const q = parseFloat(updated[index].quantity) || 0;
+    updated[index] = {
+      ...updated[index],
+      purityType: newPurity,
+      metal: targetMetal,
+      rate: targetRate,
+      amount: Math.round(q * targetRate * 100) / 100,
+    };
+    setItems(updated);
+  };
+
+  const addItemRow = (purity = 'gold22k') => {
+    let targetMetal = 'gold';
+    let targetRate = metalRates.gold22k || 13610;
+
+    if (purity === 'gold24k') {
+      targetMetal = 'gold';
+      targetRate = metalRates.gold24k || 14315;
+    } else if (purity === 'silver') {
+      targetMetal = 'silver';
+      targetRate = metalRates.silver || 191;
+    }
+
+    setItems((prev) => {
+      setActiveRowIndex(prev.length);
+      return [
+        ...prev,
+        {
+          slNo: prev.length + 1,
+          description: '', // blank so placeholder shows! User writes item name by self!
+          purityType: purity,
+          metal: targetMetal,
+          hsnSac: '7113',
+          quantity: '',
+          rate: targetRate,
+          per: 'gms',
+          amount: 0,
+        },
+      ];
+    });
+    setSelectedRateType(purity);
   };
 
   // Apply current metal rates across all existing rows
   const applyRatesToAllItems = () => {
     const updated = items.map((item) => {
-      const isSilv = item.metal === 'silver' || isSilverItem(item);
-      const targetRate = isSilv
-        ? (metalRates.silver || 191)
-        : getRateForMetal(item.metal, item.description, metalRates);
+      const purity = item.purityType || (item.metal === 'silver' ? 'silver' : 'gold22k');
+      let targetRate = metalRates.gold22k || 13610;
+      if (purity === 'gold24k') {
+        targetRate = metalRates.gold24k || 14315;
+      } else if (purity === 'silver') {
+        targetRate = metalRates.silver || 191;
+      }
       const q = parseFloat(item.quantity) || 0;
       return {
         ...item,
+        purityType: purity,
+        metal: purity === 'silver' ? 'silver' : 'gold',
         rate: targetRate,
         amount: Math.round(q * targetRate * 100) / 100,
       };
     });
     setItems(updated);
-    setRatesSuccessMsg('Rates applied to all items!');
+    setRatesSuccessMsg('✓ Current live rates synced and applied across all items!');
     setTimeout(() => setRatesSuccessMsg(''), 2500);
   };
 
@@ -553,16 +599,24 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
           pan: buyerPan.trim(),
           state: buyerState.trim(),
         },
-        items: validItems.map((it, idx) => ({
-          slNo: idx + 1,
-          description: it.description,
-          metal: it.metal || (isSilverItem(it) ? 'silver' : (isGoldItem(it) ? 'gold' : 'other')),
-          hsnSac: it.hsnSac || '7113',
-          quantity: parseFloat(it.quantity),
-          rate: parseFloat(it.rate),
-          per: it.per || 'gms',
-          amount: parseFloat(it.amount),
-        })),
+        items: validItems.map((it, idx) => {
+          let desc = (it.description || '').trim();
+          if (!desc) {
+            if (it.purityType === 'gold24k') desc = 'GOLD 24K PURE (99.9%)';
+            else if (it.purityType === 'silver' || it.metal === 'silver') desc = 'SILVER ORNAMENTS (92.5%)';
+            else desc = 'GOLD ORNAMENTS (916%)';
+          }
+          return {
+            slNo: idx + 1,
+            description: desc,
+            metal: it.metal || (it.purityType === 'silver' ? 'silver' : 'gold'),
+            hsnSac: (it.hsnSac || '').trim() || '7113',
+            quantity: parseFloat(it.quantity),
+            rate: parseFloat(it.rate),
+            per: it.per || 'gms',
+            amount: parseFloat(it.amount),
+          };
+        }),
         otherProducts: sanitizedOtherProducts,
         otherProductsTotal: otherProductsVal,
         makingCharges: makingChargesVal,
@@ -1052,137 +1106,100 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
                     </div>
                   </div>
 
-                  {/* 3 Price Cards Grid */}
+                  {/* Sleek Kolkata Bullion Rates Strip */}
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '0.75rem',
-                    marginBottom: '0.5rem',
+                    gap: '0.65rem',
+                    marginBottom: '0.4rem',
                   }}>
-                    {/* Card 1: Gold 22K (916) Hallmark */}
+                    {/* Chip 1: Gold 22K (916) Hallmark */}
                     <div style={{
-                      background: 'linear-gradient(180deg, #FFFDF8 0%, #FAF5EA 100%)',
+                      background: '#FAF7EE',
                       border: '1.5px solid #DFC068',
-                      borderRadius: '10px',
-                      padding: '0.75rem 0.9rem',
-                      boxShadow: '0 2px 8px rgba(184, 142, 40, 0.08)',
+                      borderRadius: '8px',
+                      padding: '0.55rem 0.8rem',
                       display: 'flex',
-                      flexDirection: 'column',
+                      alignItems: 'center',
                       justifyContent: 'space-between',
+                      boxShadow: '0 1px 4px rgba(184, 142, 40, 0.08)',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.95rem' }}>🪙</span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8A6413', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Gold 22K (916)
-                          </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ fontSize: '1.1rem' }}>🪙</span>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 750, color: '#8A6413', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Gold 22K Hallmark
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#785A11', fontWeight: 550, marginTop: '0.05rem' }}>
+                            1 Vori ≈ ₹{Number(Math.round((metalRates.gold22k || 13610) * 11.664)).toLocaleString('en-IN')}
+                          </div>
                         </div>
-                        <span style={{
-                          fontSize: '0.62rem',
-                          fontWeight: 700,
-                          background: '#F5ECCE',
-                          color: '#785A11',
-                          padding: '0.1rem 0.4rem',
-                          borderRadius: '4px',
-                          letterSpacing: '0.04em',
-                        }}>
-                          HALLMARK
-                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#047857', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#047857', fontFamily: 'var(--font-heading)' }}>
                           ₹{Number(metalRates.gold22k || 13610).toLocaleString('en-IN')}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                          / gram
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: '#785A11', marginTop: '0.25rem', opacity: 0.9 }}>
-                        Standard Jewellery • Auto-applied
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>/ gram</span>
                       </div>
                     </div>
 
-                    {/* Card 2: Gold 24K Pure */}
+                    {/* Chip 2: Gold 24K Pure */}
                     <div style={{
-                      background: '#FFFFFF',
-                      border: '1px solid #E5DFD4',
-                      borderRadius: '10px',
-                      padding: '0.75rem 0.9rem',
-                      boxShadow: '0 1px 4px rgba(28, 25, 23, 0.04)',
+                      background: '#FFFBEB',
+                      border: '1.5px solid #FCD34D',
+                      borderRadius: '8px',
+                      padding: '0.55rem 0.8rem',
                       display: 'flex',
-                      flexDirection: 'column',
+                      alignItems: 'center',
                       justifyContent: 'space-between',
+                      boxShadow: '0 1px 4px rgba(217, 119, 6, 0.06)',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.95rem' }}>✨</span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Gold 24K Pure
-                          </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ fontSize: '1.1rem' }}>✨</span>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 750, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Gold 24K Pure (99.9%)
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#B45309', fontWeight: 550, marginTop: '0.05rem' }}>
+                            Bullion Bars & Coins
+                          </div>
                         </div>
-                        <span style={{
-                          fontSize: '0.62rem',
-                          fontWeight: 700,
-                          background: '#F3EFE7',
-                          color: '#57534E',
-                          padding: '0.1rem 0.4rem',
-                          borderRadius: '4px',
-                        }}>
-                          99.9% PURE
-                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#B45309', fontFamily: 'var(--font-heading)' }}>
                           ₹{Number(metalRates.gold24k || 14315).toLocaleString('en-IN')}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                          / gram
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        Bullion Bars & 24K Coins
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>/ gram</span>
                       </div>
                     </div>
 
-                    {/* Card 3: Fine Silver */}
+                    {/* Chip 3: Fine Silver */}
                     <div style={{
-                      background: '#FFFFFF',
-                      border: '1px solid #E5DFD4',
-                      borderRadius: '10px',
-                      padding: '0.75rem 0.9rem',
-                      boxShadow: '0 1px 4px rgba(28, 25, 23, 0.04)',
+                      background: '#F8FAFC',
+                      border: '1.5px solid #CBD5E1',
+                      borderRadius: '8px',
+                      padding: '0.55rem 0.8rem',
                       display: 'flex',
-                      flexDirection: 'column',
+                      alignItems: 'center',
                       justifyContent: 'space-between',
+                      boxShadow: '0 1px 4px rgba(71, 85, 105, 0.06)',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <span style={{ fontSize: '0.95rem' }}>⚪</span>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Fine Silver
-                          </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ fontSize: '1.1rem' }}>⚪</span>
+                        <div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 750, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Fine Silver (92.5%)
+                          </div>
+                          <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 550, marginTop: '0.05rem' }}>
+                            Payal, Utensils & Ornaments
+                          </div>
                         </div>
-                        <span style={{
-                          fontSize: '0.62rem',
-                          fontWeight: 700,
-                          background: '#F1F5F9',
-                          color: '#475569',
-                          padding: '0.1rem 0.4rem',
-                          borderRadius: '4px',
-                        }}>
-                          92.5% / 999
-                        </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#334155', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1E293B', fontFamily: 'var(--font-heading)' }}>
                           ₹{Number(metalRates.silver || 191).toLocaleString('en-IN')}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                          / gram
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        Payal, Ornaments & Utensils
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>/ gram</span>
                       </div>
                     </div>
                   </div>
@@ -1312,27 +1329,44 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 650, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-heading)' }}>
-                  Description of Goods & Quantities (Gold / Silver)
-                </h3>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div>
+                  <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--gold-primary)', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'var(--font-heading)', margin: 0 }}>
+                    Description of Goods & Quantities (Gold / Silver)
+                  </h3>
+                  <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                    ✍️ Type item name freely (e.g. Ring, Chain, Bala) • Select metal purity to auto-fill rate
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   <button
                     type="button"
-                    onClick={() => addItemRow('gold')}
+                    onClick={() => addItemRow('gold22k')}
                     className="btn-outline"
-                    style={{ padding: '0.4rem 0.75rem', fontSize: 'var(--text-xs)', borderColor: '#047857', color: '#047857' }}
+                    style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-xs)', borderColor: '#B88E28', color: '#8A6413', background: '#FFFDF8', fontWeight: 650, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    title="Add new 22K Hallmark Gold item"
                   >
-                    <Plus size={14} />
-                    <span>Add Gold Item</span>
+                    <Plus size={13} />
+                    <span>22K Gold Item</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addItemRow('gold24k')}
+                    className="btn-outline"
+                    style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-xs)', borderColor: '#D97706', color: '#B45309', background: '#FFFDF8', fontWeight: 650, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    title="Add new 24K Pure Gold item (coins/bars)"
+                  >
+                    <Plus size={13} />
+                    <span>24K Pure Gold</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => addItemRow('silver')}
                     className="btn-outline"
-                    style={{ padding: '0.4rem 0.75rem', fontSize: 'var(--text-xs)', borderColor: '#475569', color: '#475569' }}
+                    style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--text-xs)', borderColor: '#475569', color: '#475569', background: '#F8FAFC', fontWeight: 650, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    title="Add Fine Silver item"
                   >
-                    <Plus size={14} />
-                    <span>Add Silver Item</span>
+                    <Plus size={13} />
+                    <span>Silver Item</span>
                   </button>
                 </div>
               </div>
@@ -1342,105 +1376,150 @@ export default function InvoiceFormModal({ isOpen, onClose, onSave, editingInvoi
               </div>
 
               <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse' }}>
+                <table style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '40px', textAlign: 'center', verticalAlign: 'middle' }}>#</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '220px', verticalAlign: 'middle' }}>Description of Goods</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '90px', verticalAlign: 'middle' }}>HSN/SAC</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '110px', verticalAlign: 'middle' }}>Quantity (Gms)</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px', verticalAlign: 'middle' }}>Rate (₹/gm)</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '70px', verticalAlign: 'middle' }}>Per</th>
-                      <th style={{ padding: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)', width: '120px', verticalAlign: 'middle' }}>Amount (₹)</th>
-                      <th style={{ padding: '0.5rem', width: '40px', verticalAlign: 'middle' }}></th>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)', textAlign: 'left', background: 'rgba(184, 142, 40, 0.04)' }}>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '36px', textAlign: 'center', verticalAlign: 'middle' }}>#</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '220px', verticalAlign: 'middle' }}>Item Name / Description *</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '85px', textAlign: 'center', verticalAlign: 'middle' }}>HSN Code</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '120px', verticalAlign: 'middle' }}>Quantity (Gms) *</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '115px', verticalAlign: 'middle' }}>Rate (₹/gm) *</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '60px', textAlign: 'center', verticalAlign: 'middle' }}>Per</th>
+                      <th style={{ padding: '0.6rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', width: '115px', textAlign: 'right', verticalAlign: 'middle' }}>Amount (₹)</th>
+                      <th style={{ padding: '0.6rem 0.35rem', width: '36px', verticalAlign: 'middle' }}></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                        <td style={{ padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', verticalAlign: 'middle' }}>
-                          {item.slNo}
-                        </td>
-                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
-                          <input
-                            type="text"
-                            required
-                            className="form-input"
-                            style={{ padding: '0.45rem 0.65rem' }}
-                         
-                            value={item.description}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              handleItemChange(idx, 'description', val);
-                              if (isSilverItem({ description: val })) {
-                                handleItemChange(idx, 'metal', 'silver');
-                              } else if (isGoldItem({ description: val })) {
-                                handleItemChange(idx, 'metal', 'gold');
-                              }
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
-                          <input
-                            type="text"
-                            className="form-input"
-                            style={{ padding: '0.45rem 0.65rem' }}
-                            value={item.hsnSac}
-                            onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
-                          <input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            required
-                            className="form-input"
-                            style={{ padding: '0.45rem 0.65rem' }}
-                            
-                            value={item.quantity}
-                            onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            required
-                            className="form-input"
-                            style={{ padding: '0.45rem 0.65rem' }}
-                            placeholder="₹ Rate"
-                            value={item.rate}
-                            onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
-                          <input
-                            type="text"
-                            className="form-input"
-                            style={{ padding: '0.45rem 0.65rem' }}
-                            value={item.per}
-                            onChange={(e) => handleItemChange(idx, 'per', e.target.value)}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                          ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ padding: '0.5rem', textAlign: 'center', verticalAlign: 'middle' }}>
-                          {items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeItemRow(idx)}
-                              style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                              title="Remove item"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {items.map((item, idx) => {
+                      const purity = item.purityType || (item.metal === 'silver' ? 'silver' : 'gold22k');
+                      const itemPlaceholder = purity === 'gold24k'
+                        ? 'e.g. 24K Gold Coin, Bar, Biscuit...'
+                        : purity === 'silver'
+                        ? 'e.g. Silver Payal, Chain, Bowl...'
+                        : 'e.g. Gold Ring, Chain, Bala, Earring...';
+
+                      const weightGrams = parseFloat(item.quantity) || 0;
+                      const weightVori = weightGrams > 0 ? (weightGrams / 11.664).toFixed(3) : null;
+
+                      return (
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom: '1px solid var(--border-subtle)',
+                            background: activeRowIndex === idx ? 'rgba(184, 142, 40, 0.04)' : 'transparent',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onClick={() => setActiveRowIndex(idx)}
+                        >
+                          {/* # */}
+                          <td style={{ padding: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', verticalAlign: 'middle', fontWeight: 600 }}>
+                            {item.slNo}
+                          </td>
+
+                          {/* Item Name / Description */}
+                          <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '0.45rem 0.65rem', fontSize: '0.84rem' }}
+                              placeholder={itemPlaceholder}
+                              value={item.description}
+                              onFocus={() => setActiveRowIndex(idx)}
+                              onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                              title="Type the custom jewellery item name freely (e.g. Bala, Ring, Chain)"
+                            />
+                          </td>
+
+                          {/* HSN Code */}
+                          <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '0.45rem 0.4rem', textAlign: 'center', fontSize: '0.82rem', fontFamily: 'monospace' }}
+                              placeholder="7113"
+                              value={item.hsnSac ?? '7113'}
+                              onChange={(e) => handleItemChange(idx, 'hsnSac', e.target.value)}
+                              title="HSN / SAC Code for jewellery"
+                            />
+                          </td>
+
+                          {/* Quantity (Gms) with Vori indicator */}
+                          <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                            <input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              required
+                              className="form-input"
+                              style={{ padding: '0.45rem 0.6rem', fontSize: '0.85rem', fontWeight: 600 }}
+                              placeholder="0.000"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                            />
+                            {weightVori && (
+                              <div style={{ fontSize: '0.65rem', color: '#8A6413', fontWeight: 650, marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
+                                ≈ {weightVori} vori
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Rate (₹/gm) */}
+                          <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              required
+                              className="form-input"
+                              style={{ padding: '0.45rem 0.6rem', fontSize: '0.85rem', fontWeight: 650 }}
+                              placeholder="₹ Rate"
+                              value={item.rate}
+                              onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                            />
+                          </td>
+
+                          {/* Per */}
+                          <td style={{ padding: '0.5rem', verticalAlign: 'middle' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              style={{ padding: '0.45rem 0.3rem', textAlign: 'center', fontSize: '0.8rem' }}
+                              value={item.per || 'gms'}
+                              onChange={(e) => handleItemChange(idx, 'per', e.target.value)}
+                            />
+                          </td>
+
+                          {/* Amount */}
+                          <td style={{ padding: '0.5rem', fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9rem', verticalAlign: 'middle', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            ₹{Number(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+
+                          {/* Remove Row */}
+                          <td style={{ padding: '0.5rem 0.35rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                            {items.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeItemRow(idx)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#DC2626',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '0.25rem',
+                                  borderRadius: '4px',
+                                }}
+                                title="Remove item"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

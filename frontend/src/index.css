@@ -322,6 +322,14 @@ input, button, select, textarea {
   white-space: nowrap;
 }
 
+.preset-short-label {
+  display: none;
+}
+
+.preset-full-label {
+  display: inline;
+}
+
 .stats-filter-pill-btn:hover {
   background: #ECE7DC;
   color: var(--text-main);
@@ -842,22 +850,23 @@ input, button, select, textarea {
     grid-template-columns: repeat(6, 1fr) !important;
     gap: 0.85rem !important;
   }
-  /* Row 1: Invoices & Total Turnover (50% each) */
-  .dashboard-stat-card:nth-child(1) {
+  /* Row 1: Total Turnover Hero (100% width) */
+  #stat-total-billing {
+    grid-column: span 6 !important;
+  }
+  /* Row 2: Gold Billed & Silver Billed (50% each) */
+  #stat-gold-quantity {
     grid-column: span 3 !important;
   }
-  .dashboard-stat-card:nth-child(2) {
+  #stat-silver-quantity {
     grid-column: span 3 !important;
   }
-  /* Row 2: Gold Billed, Silver Billed, Customer Base (33.3% each) */
-  .dashboard-stat-card:nth-child(3) {
-    grid-column: span 2 !important;
+  /* Row 3: Total Invoices & Customer Base (50% each) */
+  #stat-total-invoices {
+    grid-column: span 3 !important;
   }
-  .dashboard-stat-card:nth-child(4) {
-    grid-column: span 2 !important;
-  }
-  .dashboard-stat-card:nth-child(5) {
-    grid-column: span 2 !important;
+  #stat-customer-base {
+    grid-column: span 3 !important;
   }
 }
 
@@ -946,14 +955,115 @@ input, button, select, textarea {
     max-width: 100% !important;
   }
 
-  /* Dashboard Stats 2-column on tablet portrait / larger mobile */
-  .dashboard-stats {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.75rem !important;
+  /* Mobile Performance Analytics Horizontal Swipe Bar */
+  .stats-date-filter-bar {
+    padding: 0.65rem 0.75rem !important;
+    gap: 0.65rem !important;
   }
 
-  .dashboard-stat-card:nth-child(5) {
+  .stats-filter-title-group {
+    width: 100% !important;
+  }
+
+  .stats-filter-pills-group {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 0.35rem !important;
+    padding-bottom: 3px !important;
+    padding-right: 1.25rem !important;
+    width: 100% !important;
+  }
+
+  .stats-filter-pills-group::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .stats-filter-pill-btn {
+    flex-shrink: 0 !important;
+    padding: 0.35rem 0.7rem !important;
+    font-size: 0.74rem !important;
+    white-space: nowrap !important;
+  }
+
+  .preset-short-label {
+    display: inline !important;
+  }
+
+  .preset-full-label {
+    display: none !important;
+  }
+
+  .stats-reset-pill-btn {
+    flex-shrink: 0 !important;
+    padding: 0.32rem 0.6rem !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap !important;
+  }
+
+  /* Dashboard Stats Mobile: Clean Executive 2-column Grid with Featured Hero Turnover */
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.55rem !important;
+  }
+
+  /* Stat 1: Total Billing Value as the prominent top Hero Banner */
+  #stat-total-billing {
     grid-column: 1 / -1 !important;
+    background: linear-gradient(135deg, #FFFDF8 0%, #FAF5EA 100%) !important;
+    border: 1.5px solid #DFC068 !important;
+    box-shadow: 0 4px 14px rgba(184, 142, 40, 0.12) !important;
+    padding: 0.85rem 0.95rem !important;
+  }
+
+  #stat-total-billing .dashboard-stat-value {
+    font-size: 1.35rem !important;
+    color: #8A6413 !important;
+  }
+
+  .dashboard-stat-card {
+    padding: 0.7rem 0.65rem !important;
+    gap: 0.5rem !important;
+    border-radius: 12px !important;
+  }
+
+  .dashboard-stat-icon-wrapper {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 9px !important;
+  }
+
+  .dashboard-stat-icon-wrapper svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .dashboard-stat-label {
+    font-size: 0.62rem !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  .dashboard-stat-value {
+    font-size: 1.05rem !important;
+    margin-top: 0.1rem !important;
+  }
+
+  .dashboard-stat-desc {
+    font-size: 0.62rem !important;
+    line-height: 1.25 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-stat-vori-pill {
+    font-size: 0.65rem !important;
+    padding: 0.12rem 0.35rem !important;
+    margin-top: 0.2rem !important;
+    display: inline-flex !important;
   }
 
   /* iOS Native Bottom Sheet Modal on iPhone 15 */
@@ -1151,15 +1261,33 @@ input, button, select, textarea {
 }
 }
 
-/* Compact Mobile (<= 540px) 1-column stack */
+/* Compact Mobile (<= 540px) Refinements */
 @media (max-width: 540px) {
   .dashboard-stats {
-    grid-template-columns: 1fr !important;
-    gap: 0.65rem !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
   }
 
-  .dashboard-stat-card:nth-child(5) {
-    grid-column: auto !important;
+  #stat-total-billing {
+    grid-column: 1 / -1 !important;
+  }
+
+  .dashboard-stat-card {
+    padding: 0.65rem 0.55rem !important;
+    gap: 0.45rem !important;
+  }
+
+  .dashboard-stat-icon-wrapper {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .dashboard-stat-label {
+    font-size: 0.6rem !important;
+  }
+
+  .dashboard-stat-value {
+    font-size: 1rem !important;
   }
 }
 

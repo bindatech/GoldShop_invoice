@@ -73,61 +73,52 @@ export default function DashboardStats({
   const getPeriodDesc = (metricType) => {
     switch (datePreset) {
       case 'today':
-        if (metricType === 'invoices') return 'Invoices created today';
+        if (metricType === 'invoices') return 'Created today';
         if (metricType === 'billing') return 'Turnover recorded today';
-        if (metricType === 'gold') return 'Gold billed today (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Silver billed today (1 v = 11.664g)';
-        if (metricType === 'customers') return 'Unique buyers today';
+        if (metricType === 'gold') return 'Gold billed today';
+        if (metricType === 'silver') return 'Silver billed today';
+        if (metricType === 'customers') return 'Buyers today';
         break;
       case 'week':
-        if (metricType === 'invoices') return 'Past 7 days invoices';
-        if (metricType === 'billing') return 'Past 7 days turnover';
-        if (metricType === 'gold') return 'Gold past 7 days (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Silver past 7 days (1 v = 11.664g)';
-        if (metricType === 'customers') return 'Unique buyers past 7 days';
+        if (metricType === 'invoices') return 'Past 7 days';
+        if (metricType === 'billing') return 'Turnover past 7 days';
+        if (metricType === 'gold') return 'Gold past 7 days';
+        if (metricType === 'silver') return 'Silver past 7 days';
+        if (metricType === 'customers') return 'Buyers past 7 days';
         break;
       case 'thisMonth':
-        if (metricType === 'invoices') return 'Invoices this month';
+        if (metricType === 'invoices') return 'This month';
         if (metricType === 'billing') return 'Turnover this month';
-        if (metricType === 'gold') return 'Gold this month (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Silver this month (1 v = 11.664g)';
-        if (metricType === 'customers') return 'Unique buyers this month';
+        if (metricType === 'gold') return 'Gold this month';
+        if (metricType === 'silver') return 'Silver this month';
+        if (metricType === 'customers') return 'Buyers this month';
         break;
       case 'prevMonth':
-        if (metricType === 'invoices') return 'Invoices previous month';
-        if (metricType === 'billing') return 'Turnover previous month';
-        if (metricType === 'gold') return 'Gold previous month (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Silver previous month (1 v = 11.664g)';
-        if (metricType === 'customers') return 'Unique buyers previous month';
+        if (metricType === 'invoices') return 'Previous month';
+        if (metricType === 'billing') return 'Turnover last month';
+        if (metricType === 'gold') return 'Gold last month';
+        if (metricType === 'silver') return 'Silver last month';
+        if (metricType === 'customers') return 'Buyers last month';
         break;
       case 'custom':
-        if (metricType === 'invoices') return 'Invoices in selected period';
-        if (metricType === 'billing') return 'Turnover in selected period';
-        if (metricType === 'gold') return 'Gold in range (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Silver in range (1 v = 11.664g)';
-        if (metricType === 'customers') return 'Unique buyers in range';
+        if (metricType === 'invoices') return 'In selected period';
+        if (metricType === 'billing') return 'Turnover in range';
+        if (metricType === 'gold') return 'Gold in range';
+        if (metricType === 'silver') return 'Silver in range';
+        if (metricType === 'customers') return 'Buyers in range';
         break;
       case 'all':
       default:
         if (metricType === 'invoices') return 'All-time created invoices';
         if (metricType === 'billing') return 'Cumulative invoiced turnover';
-        if (metricType === 'gold') return 'Total gold weight (1 v = 11.664g)';
-        if (metricType === 'silver') return 'Total silver weight (1 v = 11.664g)';
+        if (metricType === 'gold') return '1 vori = 11.664 grams';
+        if (metricType === 'silver') return '1 vori = 11.664 grams';
         if (metricType === 'customers') return 'Unique buyers served';
         break;
     }
   };
 
   const stats = [
-    {
-      id: 'stat-total-invoices',
-      label: 'Total Invoices',
-      value: totalInvoices,
-      icon: FileText,
-      color: '#1D4ED8',
-      bg: 'rgba(29, 78, 216, 0.08)',
-      desc: getPeriodDesc('invoices'),
-    },
     {
       id: 'stat-total-billing',
       label: 'Total Billing Value',
@@ -136,6 +127,7 @@ export default function DashboardStats({
       color: '#B88E28',
       bg: 'rgba(184, 142, 40, 0.12)',
       desc: getPeriodDesc('billing'),
+      isHero: true,
     },
     {
       id: 'stat-gold-quantity',
@@ -160,6 +152,15 @@ export default function DashboardStats({
       isDualWeight: true,
       metalType: 'silver',
       desc: getPeriodDesc('silver'),
+    },
+    {
+      id: 'stat-total-invoices',
+      label: 'Total Invoices',
+      value: totalInvoices,
+      icon: FileText,
+      color: '#1D4ED8',
+      bg: 'rgba(29, 78, 216, 0.08)',
+      desc: getPeriodDesc('invoices'),
     },
     {
       id: 'stat-customer-base',
@@ -201,8 +202,10 @@ export default function DashboardStats({
                 type="button"
                 className={`stats-filter-pill-btn ${isActive ? 'active' : ''}`}
                 onClick={() => handleSelectPreset(preset.id)}
+                title={preset.label}
               >
-                {preset.label}
+                <span className="preset-full-label">{preset.label}</span>
+                <span className="preset-short-label">{preset.shortLabel || preset.label}</span>
               </button>
             );
           })}

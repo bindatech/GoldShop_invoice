@@ -3,12 +3,12 @@
  */
 
 export const DATE_PRESETS = [
-  { id: 'all', label: 'All Time' },
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'Last 1 Week' },
-  { id: 'thisMonth', label: 'This Month' },
-  { id: 'prevMonth', label: 'Previous Month' },
-  { id: 'custom', label: 'Custom Range' },
+  { id: 'all', label: 'All Time', shortLabel: 'All Time' },
+  { id: 'today', label: 'Today', shortLabel: 'Today' },
+  { id: 'week', label: 'Last 1 Week', shortLabel: '1 Week' },
+  { id: 'thisMonth', label: 'This Month', shortLabel: 'This Month' },
+  { id: 'prevMonth', label: 'Previous Month', shortLabel: 'Prev Month' },
+  { id: 'custom', label: 'Custom Range', shortLabel: 'Custom' },
 ];
 
 /**
